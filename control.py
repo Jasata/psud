@@ -46,6 +46,8 @@ def ticker():
     #         flush=True
     #     )
 def psu(config):
+    import syslog
+    syslog.syslog(syslog.LOG_ERR, "I AM HERE!")
     try:
         psu = PSU(config.PSU.port)
         with \
@@ -55,13 +57,13 @@ def psu(config):
                 update_interval     = config.PSU.Daemon.Interval.update
             ) as event:
             while True:
-                ticker()
+                #ticker()
                 events = event.next()
                 if events & IntervalScheduler.COMMAND:
                     # (id, command, value)
                     cmd = db.command.next()
                     if cmd:
-                        print(cmd)
+                        #print(cmd)
                         if cmd[1] == "SET VOLTAGE":
                             try:
                                 psu.voltage = float(cmd[2])
@@ -104,7 +106,8 @@ def psu(config):
                 if events & IntervalScheduler.UPDATE:
                     db.psu.update(psu.values)
     except KeyboardInterrupt:
-        print("\nTerminated with CTRL-C")
+        #print("\nTerminated with CTRL-C")
+        pass
 
 
 # EOF

@@ -17,6 +17,8 @@ import time
 import errno
 import fcntl
 import syslog
+import logging
+import logging.handlers
 
 from Lockfile       import Lockfile
 
@@ -31,13 +33,13 @@ def sigusr1():
     #syslog.info("Unimplemented SIGUSR1 caught")
     pass
 
-def silentremove(filename):
-    try:
-        os.remove(filename)
-    except OSError as e:
-        # raise if other than "no such file or directory" exception
-        if e.errno != errno.ENOENT:
-            raise
+# def silentremove(filename):
+#     try:
+#         os.remove(filename)
+#     except OSError as e:
+#         # raise if other than "no such file or directory" exception
+#         if e.errno != errno.ENOENT:
+#             raise
 
 
 #
@@ -51,12 +53,22 @@ def process(function, config):
     #
     process_id = os.fork()
     if process_id < 0:
-        # fork() failed
         print("os.fork() failure! Cannot deamonify!")
         os._exit(-1)
     elif process_id != 0:
-        # fork() success. This is parent. Report and close.
-        print("Daemon process launched. Exiting.")
+        print("Daemon process launched (PID: {}).".format(process_id))
+        #
+        # Wait to see if the child pid is still alive after awhile.
+        # This "trick" works because we cannot be in a position where we
+        # would lack the privileges to send a signal to our own child.
+        #
+        time.sleep(1.0)
+        try:
+            os.kill(process_id, 0)
+        except OSError:
+            print("Daemon process has died! Check logs!")
+        else:
+            print("Daemon appears to run normally. Exiting...")
         os._exit(0)
 
 
@@ -67,8 +79,16 @@ def process(function, config):
     #
 
     try:
-        syslog.openlog(logoption=syslog.LOG_PID, facility=syslog.LOG_DAEMON)
-        syslog.syslog(syslog.LOG_ERR, "Daemon initializing...")
+        # syslog.openlog(logoption=syslog.LOG_PID, facility=syslog.LOG_DAEMON)
+        # syslog.syslog(syslog.LOG_ERR, "Daemon initializing...")
+        logger = logging.getLogger()
+        logger.setLevel(logging.INFO)
+        syslog = logging.handlers.SysLogHandler(address=('localhost', 514))
+        formatter = logging.Formatter('%(asctime)s %(name)s: %(levelname)s %(message)s', '%b %e %H:%M:%S')
+        syslog.setFormatter(formatter)
+        logger.addHandler(syslog)
+        logger.info("PATE Monitor PSU Daemon initializing...")
+
 
         # Stop listening for signals that the parent process receives.
         # This is done by getting a new process id.
@@ -103,47 +123,24 @@ def process(function, config):
         # WE ARE DIFFERENT
         # We MUST block such delete attempts, because we are dependent on the
         # database file.
-        os.chdir(config.PSU.Daemon.run_directory)
-
-
-        #
-        # Lock and PID files
-        #
-        # Debian policy dictates that lock files go to '/var/lock/{name}.lock'
-        # and PID files go to '/var/run/{name}.pid' ... BUT this applied to
-        # daemons that start/run as 'root'. We are using configured directory.
-        #
-        try:
-            lockfilepath = "{}/{}.lock".format(
-                config.PSU.Daemon.lock_directory,
-                __daemon_name__
-            )
-            lockfile = open(lockfilepath, 'w')
-            # Get an exclusive lock on files. Fails if another process has
-            # the files locked.
-            fcntl.lockf(lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            # Record the process id to pid and lock files.
-            lockfile.write('%s' %(os.getpid()))
-            lockfile.flush()
-        except Exception as e:
-            syslog.syslog(syslog.LOG_ERR, "Unable to create lock file!")
-            try:
-                silentremove(lockfile)
-            except:
-                pass
-            os._exit(-1)
+        os.chdir(config.PSU.Daemon.working_directory)
 
     except Exception as e:
-        syslog.syslog(syslog.LOG_ERR, "Daemon initialization failed!")
-        syslog.syslog(syslog.LOG_ERR, str(e))
+        syslog.syslog(syslog.LOG_ERR, "Initialization failure! " + str(e))
         os._exit(-1)
 
 
     #
-    # Enter main loop
+    # Enter main loop with lock file
+    #
+    # Debian policy dictates that lock files go to '/var/lock/{name}.lock'
+    # and PID files go to '/var/run/{name}.pid' ... BUT this applied to
+    # daemons that start/run as 'root'.
+    #
+    # We are using configured directory and only a lock file, with PID in it.
     #
     try:
-        with Lockfile("/tmp/{}.lock".format(config.PSU.Daemon.name))
+        with Lockfile("/tmp/{}.lock".format(config.PSU.Daemon.name)):
             function(config)
     except Lockfile.AlreadyRunning as e:
         syslog.syslog(syslog_LOG_ERR, str(e))
@@ -160,7 +157,7 @@ def process(function, config):
     #
     # Returned from main loop
     #
-    syslog.syslog(syslog.LOG_DAEMON, "Exiting...")
+    #syslog.syslog(syslog.LOG_DAEMON, "Exiting...")
 
 
 
