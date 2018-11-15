@@ -18,6 +18,8 @@ import errno
 import fcntl
 import syslog
 
+from Lockfile       import Lockfile
+
 
 __daemon_name__ = "patemon.psud"
 
@@ -141,6 +143,7 @@ def process(function, config):
     # Enter main loop
     #
     try:
+        with Lockfile("/tmp/{}.lock".format(config.PSU.Daemon.name))
         function(config)
     except Exceptionas as e:
         syslog.syslog(

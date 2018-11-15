@@ -44,97 +44,38 @@ import argparse
 
 from Config         import Config, display_config
 from pathlib        import Path
+from control        import *                # Most importantly: control.psu()
 
 
-__daemon_name__ = "patemon.psud"
 
 
 def start_regular_process(function, config=Config):
-    """Change directory, create PID and lock files."""
-    def silentremove(filename):
-        try:
-            os.remove(filename)
-        except OSError as e:
-            # raise if other than "no such file or directory" exception
-            if e.errno != errno.ENOENT:
-                raise
+    """Change directory, create lock file, run."""
 
     try:
-        os.chdir(config.PSU.Daemon.run_directory)
+        os.chdir(config.PSU.Daemon.working_directory)
     except Exception as e:
         print(
             "Unable to change directory to '{}'!\n".format(
-                config.PSU.Daemon.run_directory
+                config.PSU.Daemon.working_directory
             )
         )
         print(str(e))
         os._exit(-1)
 
     #
-    # Lock and PID files
-    #
-    # Debian policy dictates that lock files go to '/var/lock/{name}.lock'
-    # and PID files go to '/var/run/{name}.pid' ... BUT this applied to
-    # daemons that start/run as 'root'. We are using configured directory.
-    #
-    try:
-        lockfilepath = "{}/{}.lock".format(
-            config.PSU.Daemon.lock_directory,
-            __daemon_name__
-        )
-        pidfilepath  = "{}/{}.pid".format(
-            config.PSU.Daemon.pid_directory,
-            __daemon_name__
-        )
-        lockfile = open(lockfilepath, 'w')
-        pidfile  = open(pidfilepath, "w")
-        # Get an exclusive lock on files. Fails if another process has
-        # the files locked.
-        fcntl.lockf(lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        fcntl.lockf(pidfile,  fcntl.LOCK_EX | fcntl.LOCK_NB)
-        # Record the process id to pid and lock files.
-        lockfile.write('%s' %(os.getpid()))
-        lockfile.flush()
-        pidfile.write('%s' %(os.getpid()))
-        pidfile.flush()
-    except Exception as e:
-        print("Error creating PID and lock files!\n", str(e))
-        try:
-            silentremove(lockfilepath)
-            silentremove(pidfilepath)
-        except:
-            pass
-        os._exit(-1)
-
-    #
     # Execute main loop
     #
     try:
-        function(config)
+        from Lockfile import Lockfile
+        with Lockfile("/tmp/{}.lock".format(Config.PSU.Daemon.name)):
+            function(config)
+    except Lockfile.AlreadyRunning as e:
+        print(str(e))
     except Exception as e:
         print("Main loop ended with an exception!\n", str(e))
     else:
         print("Normal termination.")
-
-    #
-    # Remove PID and Lock files
-    #
-    try:
-        silentremove(lockfilepath)
-        silentremove(pidfilepath)
-    except:
-        print("PID and/or lock file removal failed!")
-        if config.PSU.Daemon.lock_directory == config.PSU.Daemon.pid_directory:
-            print("Please check '{}' directory.".format(
-                config.PSU.Daemon.lock_directory
-                )
-            )
-        else:
-            print("Please check '{}' and '{}' directories.".format(
-                config.PSU.Daemon.lock_directory,
-                config.PSU.Daemon.pid_directory
-                )
-            )
 
 
 
@@ -274,23 +215,13 @@ if __name__ == "__main__":
     #
     # Start-up routines completed, deamonify
     #
-    try:
-        from Lockfile import Lockfile
-        with Lockfile("/tmp/{}.lock".format(__daemon_name__)):
+    from control import psu
+    if args.nodaemon:
+        start_regular_process(psu, Config)
+    else:
+        import daemonify
+        daemonify.process(psu, Config)
 
-            import control
-            if args.nodaemon:
-                start_regular_process(control.psu, Config)
-            else:
-                import daemonify
-                daemonify.process(control.psu, Config)
-
-    # Note that only this process should ever return here.
-    # Spawned daemon should die within it's own scope.
-    except Lockfile.AlreadyRunning as e:
-        print(str(e))
-    except Exception as e:
-        print(str(e))
 
 
 # EOF

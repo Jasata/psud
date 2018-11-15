@@ -19,7 +19,8 @@ class Config:
         default_voltage = 2.5         #[V]
         default_current_limit = 0.100 #[A]
         class Daemon:
-            run_directory       = '/srv/nginx-root'
+            name                = "patemon.psud"
+            working_directory   = '/srv/nginx-root'
             lock_directory      = '/tmp'
             class Interval:
                 command         = 0.2   # seconds between polls
