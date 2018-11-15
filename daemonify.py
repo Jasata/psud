@@ -16,6 +16,7 @@ import sys
 import time
 import errno
 import fcntl
+import syslog
 
 
 __daemon_name__ = "psud"
@@ -63,102 +64,132 @@ def process(function, config):
     # Daemon process
     #
 
-    #
-    # TODO: syslog
-    #
-
-    # Stop listening for signals that the parent process receives.
-    # This is done by getting a new process id.
-    # setpgrp() is an alternative to setsid().
-    # setsid puts the process in a new parent group and detaches its
-    # controlling terminal.
-    process_id = os.setsid()
-    if process_id == -1:
-        # Uh oh, there was a problem.
-        # syslog.report()
-        os._exit(-1) # sys.exit(1)
-
-
-    #
-    # Close file descriptors
-    #
-    devnull = '/dev/null'
-    if hasattr(os, "devnull"):
-        # Python has set os.devnull on this system, use it instead 
-        # as it might be different than /dev/null.
-        devnull = os.devnull
-    null_descriptor = open(devnull, 'rw')
-    for descriptor in (sys.stdin, sys.stdout, sys.stderr):
-        descriptor.close()
-        descriptor = null_descriptor
-
-
-    #
-    # Set umask to default to safe file permissions when running
-    # as a root daemon. 027 is an octal number.
-    os.umask(0o027)
-
-
-    #
-    # Normally, daemons change working directory to '/', in order to avoid
-    # blocking directory removal operations.
-    #
-    # WE ARE DIFFERENT
-    # We MUST block such delete attempts, because we are dependent on the
-    # database file.
-    os.chdir(config.PSU.Daemon.directory)
-
-
-    #
-    # Lock and PID files
-    #
-    # Debian policy dictates that lock files go to '/var/lock/{name}.lock'
-    # and PID files go to '/var/run/{name}.pid'.
-    #
     try:
-        lockfile = open("/var/lock/{}.lock".format(__daemon_name__), 'w')
-        pidfile  = open("/var/run/{}.pid".format(__daemon_name__), "w")
-        # Get an exclusive lock on files. Fails if another process has
-        # the files locked.
-        fcntl.lockf(lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        fcntl.lockf(pidfile,  fcntl.LOCK_EX | fcntl.LOCK_NB)
-        # Record the process id to pid and lock files.
-        lockfile.write('%s' %(os.getpid()))
-        lockfile.flush()
-        pidfile.write('%s' %(os.getpid()))
-        pidfile.flush()
-    except Exception as e:
-        # TODO: log exception
+        syslog.openlog(logoption=syslog.LOG_PID, facility=syslog.LOG_DAEMON)
+        syslog.syslog(syslog.LOG_ERR, "Daemon initializing...")
+
+        # Stop listening for signals that the parent process receives.
+        # This is done by getting a new process id.
+        # setpgrp() is an alternative to setsid().
+        # setsid puts the process in a new parent group and detaches its
+        # controlling terminal.
+        process_id = os.setsid()
+        if process_id == -1:
+            syslog.syslog(syslog.LOG_ERR, "Unable to set session ID!")
+            os._exit(-1) # sys.exit(1)
+
+
+        #
+        # Close stdio,stdout and stderr file descriptors
+        #
+        null_descriptor = open('/dev/null', 'w+')
+        for descriptor in (sys.stdin, sys.stdout, sys.stderr):
+            descriptor.close()
+            descriptor = null_descriptor
+
+
+        #
+        # Set umask to default to safe file permissions when running
+        # as a root daemon. 027 is an octal number.
+        os.umask(0o027)
+
+
+        #
+        # Normally, daemons change working directory to '/', in order to avoid
+        # blocking directory removal operations.
+        #
+        # WE ARE DIFFERENT
+        # We MUST block such delete attempts, because we are dependent on the
+        # database file.
+        os.chdir(config.PSU.Daemon.run_directory)
+
+
+        #
+        # Lock and PID files
+        #
+        # Debian policy dictates that lock files go to '/var/lock/{name}.lock'
+        # and PID files go to '/var/run/{name}.pid' ... BUT this applied to
+        # daemons that start/run as 'root'. We are using configured directory.
+        #
         try:
-            silentremove(lockfile)
-            silentremove(pidfile)
-        except:
-            pass
+            lockfilepath = "{}/{}.lock".format(
+                config.PSU.Daemon.lock_directory,
+                __daemon_name__
+            )
+            pidfilepath  = "{}/{}.pid".format(
+                config.PSU.Daemon.pid_directory,
+                __daemon_name__
+            )
+            lockfile = open(lockfilepath, 'w')
+            pidfile  = open(pidfilepath, "w")
+            # Get an exclusive lock on files. Fails if another process has
+            # the files locked.
+            fcntl.lockf(lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.lockf(pidfile,  fcntl.LOCK_EX | fcntl.LOCK_NB)
+            # Record the process id to pid and lock files.
+            lockfile.write('%s' %(os.getpid()))
+            lockfile.flush()
+            pidfile.write('%s' %(os.getpid()))
+            pidfile.flush()
+        except Exception as e:
+            syslog.syslog(syslog.LOG_ERR, "Unable to create lock file!")
+            try:
+                silentremove(lockfile)
+                silentremove(pidfile)
+            except:
+                pass
+            os._exit(-1)
+
+    except Exception as e:
+        syslog.syslog(syslog.LOG_ERR, "Daemon initialization failed!")
+        syslog.syslog(syslog.LOG_ERR, str(e))
         os._exit(-1)
 
-
-
-    # PID file TODO
-
-    # Logging.  Current thoughts are:
-    # 1. Attempt to use the Python logger (this won't work Python < 2.3)
-    # 2. Offer the ability to log to syslog
-    # 3. If logging fails, log stdout & stderr to a file
-    # 4. If logging to file fails, log stdout & stderr to stdout.
 
     #
     # Enter main loop
     #
-    function(config)
+    try:
+        function(config)
+    except Exceptionas as e:
+        syslog.syslog(
+            syslog.LOG_ERR,
+            "Daemon routine exits with an exception!"
+        )
+        # ...hoping it will be logged...
+        raise
 
 
     #
     # Returned from main loop
     #
 
-    # Remove pid and lock files
-    # TODO rm lockfile
-    # TODO rm pidfile
+    #
+    # Remove PID and Lock files
+    #
+    try:
+        silentremove(lockfilepath)
+        silentremove(pidfilepath)
+    except:
+        syslog.syslog(
+            syslog.LOG_ERR,
+            "PID and/or lock file removal failed!"
+        )
+        if config.PSU.Daemon.lock_directory == config.PSU.Daemon.pid_directory:
+            syslog.syslog(
+                syslog.LOG_ERR,
+                "Please check '{}' directory.".format(
+                    config.PSU.Daemon.lock_directory
+                )
+            )
+        else:
+            syslog.syslog(
+                syslog.LOG_ERR,
+                "Please check '{}' and '{}' directories.".format(
+                config.PSU.Daemon.lock_directory,
+                config.PSU.Daemon.pid_directory
+                )
+            )
 
     # Close logging
 
