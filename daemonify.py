@@ -19,7 +19,7 @@ import fcntl
 import syslog
 
 
-__daemon_name__ = "psud"
+__daemon_name__ = "patemon.psud"
 
 def terminate():
     #syslog.critical('OBCED terminating...')
@@ -116,26 +116,17 @@ def process(function, config):
                 config.PSU.Daemon.lock_directory,
                 __daemon_name__
             )
-            pidfilepath  = "{}/{}.pid".format(
-                config.PSU.Daemon.pid_directory,
-                __daemon_name__
-            )
             lockfile = open(lockfilepath, 'w')
-            pidfile  = open(pidfilepath, "w")
             # Get an exclusive lock on files. Fails if another process has
             # the files locked.
             fcntl.lockf(lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            fcntl.lockf(pidfile,  fcntl.LOCK_EX | fcntl.LOCK_NB)
             # Record the process id to pid and lock files.
             lockfile.write('%s' %(os.getpid()))
             lockfile.flush()
-            pidfile.write('%s' %(os.getpid()))
-            pidfile.flush()
         except Exception as e:
             syslog.syslog(syslog.LOG_ERR, "Unable to create lock file!")
             try:
                 silentremove(lockfile)
-                silentremove(pidfile)
             except:
                 pass
             os._exit(-1)

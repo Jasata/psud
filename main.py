@@ -46,7 +46,7 @@ from Config         import Config, display_config
 from pathlib        import Path
 
 
-__daemon_name__ = "psud"
+__daemon_name__ = "patemon.psud"
 
 
 def start_regular_process(function, config=Config):
@@ -274,12 +274,23 @@ if __name__ == "__main__":
     #
     # Start-up routines completed, deamonify
     #
-    import control
-    if args.nodaemon:
-        start_regular_process(control.psu, Config)
-    else:
-        import daemonify
-        daemonify.process(control.psu, Config)
+    try:
+        from Lockfile import Lockfile
+        with Lockfile("/tmp/{}.lock".format(__daemon_name__)):
+
+            import control
+            if args.nodaemon:
+                start_regular_process(control.psu, Config)
+            else:
+                import daemonify
+                daemonify.process(control.psu, Config)
+
+    # Note that only this process should ever return here.
+    # Spawned daemon should die within it's own scope.
+    except Lockfile.AlreadyRunning as e:
+        print(str(e))
+    except Exception as e:
+        print(str(e))
 
 
 # EOF

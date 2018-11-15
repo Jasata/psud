@@ -20,7 +20,6 @@ class Config:
         default_current_limit = 0.100 #[A]
         class Daemon:
             run_directory       = '/srv/nginx-root'
-            pid_directory       = '/tmp'
             lock_directory      = '/tmp'
             class Interval:
                 command         = 0.2   # seconds between polls
