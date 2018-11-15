@@ -144,11 +144,14 @@ def process(function, config):
     #
     try:
         with Lockfile("/tmp/{}.lock".format(config.PSU.Daemon.name))
-        function(config)
+            function(config)
+    except Lockfile.AlreadyRunning as e:
+        syslog.syslog(syslog_LOG_ERR, str(e))
+        os._exit(-1)
     except Exceptionas as e:
         syslog.syslog(
             syslog.LOG_ERR,
-            "Daemon routine exits with an exception!"
+            "Daemon routine exits with an exception! " + str(e)
         )
         # ...hoping it will be logged...
         raise
@@ -157,35 +160,7 @@ def process(function, config):
     #
     # Returned from main loop
     #
-
-    #
-    # Remove PID and Lock files
-    #
-    try:
-        silentremove(lockfilepath)
-        silentremove(pidfilepath)
-    except:
-        syslog.syslog(
-            syslog.LOG_ERR,
-            "PID and/or lock file removal failed!"
-        )
-        if config.PSU.Daemon.lock_directory == config.PSU.Daemon.pid_directory:
-            syslog.syslog(
-                syslog.LOG_ERR,
-                "Please check '{}' directory.".format(
-                    config.PSU.Daemon.lock_directory
-                )
-            )
-        else:
-            syslog.syslog(
-                syslog.LOG_ERR,
-                "Please check '{}' and '{}' directories.".format(
-                config.PSU.Daemon.lock_directory,
-                config.PSU.Daemon.pid_directory
-                )
-            )
-
-    # Close logging
+    syslog.syslog(syslog.LOG_DAEMON, "Exiting...")
 
 
 
