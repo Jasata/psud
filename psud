@@ -7,6 +7,7 @@
 #
 # main.py - Jani Tammi <jasata@utu.fi>
 #   0.1.0   2018.11.14  Initial version.
+#   0.2.0   2018.11.16  Modified for output compatible with daemon and console.
 #
 #
 # Execute this script to start the daemon.
@@ -66,19 +67,35 @@ def start_regular_process(function, config=Config):
         print(str(e))
         os._exit(-1)
 
+
+    #
+    # Set up logging
+    #
+    log = logging.getLogger(config.PSU.Daemon.name)
+    log.setLevel(logging.DEBUG)
+    handler = logging.StreamHandler(sys.stdout)
+    formatter = logging.Formatter(
+        fmt='%(asctime)s.%(msecs)03d: %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    handler.setFormatter(formatter)
+    log.addHandler(handler)
+
+
     #
     # Execute main loop
     #
+    log.info("Entering main loop...")
     try:
         from Lockfile import Lockfile
         with Lockfile("/tmp/{}.lock".format(Config.PSU.Daemon.name)):
             function(config)
     except Lockfile.AlreadyRunning as e:
-        print(str(e))
+        log.error(str(e))
     except Exception as e:
-        print("Main loop ended with an exception!\n", str(e))
+        log.exception("Main loop ended with an exception!\n", str(e))
     else:
-        print("Normal termination.")
+        log.info("Normal termination.")
 
 
 
@@ -236,11 +253,6 @@ if __name__ == "__main__":
         help = 'Kill daemon',
         action = 'store_true'
     )
-    parser.add_argument(
-        '--noserialtest',
-        help = 'Skips the serial port connection test',
-        action = 'store_true'
-    )
     args = parser.parse_args()
 
     #
@@ -249,6 +261,8 @@ if __name__ == "__main__":
     Config.logging_level = getattr(logging, args.logging_level)
     Config.database_file = args.database_file
     Config.PSU.port      = args.serial_port
+    # Store daemonization flag
+    setattr(Config.PSU.Daemon, 'run_as_daemon', not (args.nodaemon or False))
 
     if Config.logging_level == logging.DEBUG:
         display_config(Config)
@@ -264,9 +278,9 @@ if __name__ == "__main__":
 
 
     #
-    # Test-open serial port
+    # Test-open serial port if we are going to run as a daemon
     #
-    if not args.noserialtest:
+    if not Config.PSU.Daemon.run_as_daemon: # args.nodaemon:
         print("Opening {}...".format(Config.PSU.port), end = '', flush = True)
         try:
             port = serial.Serial(
@@ -287,13 +301,13 @@ if __name__ == "__main__":
             port.close()
 
 
-
     #
     # Check that database file exists
     #
     if not os.path.isfile(Config.database_file):
         print("Database file '{}' does NOT exist".format(Config.database_file))
         os._exit(-1)
+    # TODO: Check R/W access
 
 
     #

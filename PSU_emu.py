@@ -15,6 +15,7 @@ import random
 
 from Config import Config
 
+
 class PSU:
     ###########################################################################
     #
@@ -161,15 +162,7 @@ class PSU:
             self._over_current = True
         else:
             self._over_current = False
-        # print("\r[{:>3}] {:1.3f}/{:1.3f} V, {:1.3f}/{:1.3f} A @ {:1.3} R".format(
-        #     ("OFF", "ON")[self.power],
-        #     self._circuit_voltage, self._voltage,
-        #     self._circuit_current, self._current_limit,
-        #     r_now
-        #     ),
-        #     end = "",
-        #     flush = True
-        # )
+
 
     def _load_resistance(self) -> float:
         """R changes according to what the load does. This randomizes it."""

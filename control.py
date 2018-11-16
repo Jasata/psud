@@ -23,7 +23,6 @@ from Database           import Database
 from PSU                import PSU
 
 
-
 def ticker():
     """Rotating character. Used only on non-daemon case."""
     try:
@@ -34,6 +33,7 @@ def ticker():
         ticker()
     else:
         print("\r[{}]".format(c), end="", flush=True)
+
 
 
     # def display_psu(row: tuple):
@@ -51,21 +51,23 @@ def ticker():
     #     )
 def psu(config):
     try:
+        log = logging.getLogger(config.PSU.Daemon.name)
         psu = PSU(config.PSU.port)
         with \
             Database(config.database_file) as db, \
             IntervalScheduler(
-                command_interval    = config.PSU.Daemon.Interval.command,
-                update_interval     = config.PSU.Daemon.Interval.update
+                command_interval = config.PSU.Daemon.Interval.command,
+                update_interval  = config.PSU.Daemon.Interval.update
             ) as event:
             while True:
-                #ticker()
+                if not config.PSU.Daemon.run_as_daemon:
+                    ticker()
                 events = event.next()
                 if events & IntervalScheduler.COMMAND:
                     # (id, command, value)
                     cmd = db.command.next()
                     if cmd:
-                        #print(cmd)
+                        log.debug(cmd)
                         if cmd[1] == "SET VOLTAGE":
                             try:
                                 psu.voltage = float(cmd[2])
@@ -108,8 +110,8 @@ def psu(config):
                 if events & IntervalScheduler.UPDATE:
                     db.psu.update(psu.values)
     except KeyboardInterrupt:
-        # print() is OK here, because daemon code can never receive KeyboardInterrup
-        print("\nTerminated with CTRL-C")
+        # print() would be OK here, because daemon code can never receive KeyboardInterrupt
+        log.info("Terminated with CTRL-C")
         pass
 
 
