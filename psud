@@ -55,25 +55,6 @@ from control        import *                # Most importantly: control.psu()
 def start_regular_process(function, config=Config):
     """Change directory, create lock file, run."""
 
-    # logging.basicConfig(
-    #     level       = Config.LogLevel,
-    #     filename    = "pbbes.log",
-    #     format      = '%(asctime)s %(levelname)s %(name)s: %(message)s',
-    #     datefmt     = '%H:%M:%S'
-    # )
-    # log = logging.getLogger(config.PSU.Daemon.name)
-    # log.addHandler(logging.handlers.SysLogHandler())
-    # log.debug("whee!")
-
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-    syslog = logging.handlers.SysLogHandler(address=('localhost', 514))
-    formatter = logging.Formatter('%(asctime)s %(name)s: %(levelname)s %(message)s', '%b %e %H:%M:%S')
-    syslog.setFormatter(formatter)
-    logger.addHandler(syslog)
-    logger.info("My Message")
-
-
     try:
         os.chdir(config.PSU.Daemon.working_directory)
     except Exception as e:
@@ -136,7 +117,7 @@ def kill():
             #
             # PID is running, proceed in killing it
             #
-            print("Terminating pid {}".format(pid))
+            print("Terminating pid {}...".format(pid))
             os.kill(pid, signal.SIGTERM)
             # Try to verify kill (not sure if os.kill() returns immediately)
             for _ in range(50):
@@ -300,20 +281,15 @@ if __name__ == "__main__":
 
 
     #
-    # database file open/create
+    # Check that database file exists
     #
-    # dbfile = Path(Config.database_file)
-    # if not dbfile.is_file():
-    #     print(Config.database_file, "not found!")
-    #     os._exit(-1)
-
     if not os.path.isfile(Config.database_file):
         print("Database file '{}' does NOT exist".format(Config.database_file))
         os._exit(-1)
 
 
     #
-    # Start-up routines completed, deamonify
+    # Start-up routines completed, deamonify (or don't)
     #
     from control import psu
     if args.nodaemon:

@@ -12,7 +12,11 @@
 # Loop that processess 'command' table rows into SCPI commands
 # and keeps updating the 'psu' table.
 #
+# NOTE: print()'s seem to crash the deamon, although stdout is /dev/null
+#
 import os
+import sys
+import logging
 
 from IntervalScheduler  import IntervalScheduler
 from Database           import Database
@@ -46,8 +50,6 @@ def ticker():
     #         flush=True
     #     )
 def psu(config):
-    import syslog
-    syslog.syslog(syslog.LOG_ERR, "I AM HERE!")
     try:
         psu = PSU(config.PSU.port)
         with \

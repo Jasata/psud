@@ -27,14 +27,14 @@ class Lockfile:
         def __str__(self):
             return self.message + " (PID: {})".format(self.pid or "unknown")
 
-    def __init__(self, filename: str):
+    def __init__(self, name: str):
         """Create a lock file and write current PID into it."""
-        self.filename = filename
+        self.name = name
         try:
             try:
-                self.fd = open(self.filename, 'r+') # Open existing, do not tuncate
+                self.fd = open(self.name, 'r+') # Open existing, do not tuncate
             except FileNotFoundError:
-                self.fd = open(self.filename, 'w+') # Create and truncate
+                self.fd = open(self.name, 'w+') # Create and truncate
             # Get an exclusive lock. Fails if another process has the files locked.
             fcntl.lockf(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
             # Record the process id to pid and lock files.
@@ -54,7 +54,7 @@ class Lockfile:
     def __exit__(self, exc_type, exc_value, traceback):
         # raise if other than "no such file or directory" exception
         try:
-            os.remove(self.filename)
+            os.remove(self.name)
         except OSError as e:
             if e.errno != errno.ENOENT:
                 raise
