@@ -214,7 +214,7 @@ if __name__ == "__main__":
     parser.add_argument(
         '-d',
         '--datafile',
-        help    = "PATE Monitor SQLite3 database file path and name",
+        help    = "PATE Monitor SQLite3 database. Default: '{}'".format(Config.database_file),
         nargs   = '?',
         dest    = "database_file",
         default = Config.database_file,
@@ -224,7 +224,7 @@ if __name__ == "__main__":
     parser.add_argument(
         '-l',
         '--log',
-        help    = "Set logging level",
+        help    = "Set logging level. Default: '{}'".format(Config.logging_level),
         choices = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
         nargs   = '?',
         dest    = "logging_level",
@@ -238,7 +238,7 @@ if __name__ == "__main__":
         '--port',
         help = "Set serial port device. Default: '{}'".format(Config.PSU.port),
         nargs = '?',
-        dest = "serial_port",
+        dest = "port",
         const = "DEVICE",
         default = Config.PSU.port,
         type = str
@@ -260,7 +260,7 @@ if __name__ == "__main__":
     #
     Config.logging_level = getattr(logging, args.logging_level)
     Config.database_file = args.database_file
-    Config.PSU.port      = args.serial_port
+    Config.PSU.port      = args.port
     # Store daemonization flag
     setattr(Config.PSU.Daemon, 'run_as_daemon', not (args.nodaemon or False))
 
