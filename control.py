@@ -108,7 +108,8 @@ def psu(config):
                 if events & IntervalScheduler.UPDATE:
                     db.psu.update(psu.values)
     except KeyboardInterrupt:
-        #print("\nTerminated with CTRL-C")
+        # print() is OK here, because daemon code can never receive KeyboardInterrup
+        print("\nTerminated with CTRL-C")
         pass
 
 
