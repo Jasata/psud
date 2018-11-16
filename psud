@@ -236,6 +236,11 @@ if __name__ == "__main__":
         help = 'Kill daemon',
         action = 'store_true'
     )
+    parser.add_argument(
+        '--noserialtest',
+        help = 'Skips the serial port connection test',
+        action = 'store_true'
+    )
     args = parser.parse_args()
 
     #
@@ -251,33 +256,36 @@ if __name__ == "__main__":
 
 
     #
-    # Test-open serial port
-    #
-    print("Opening {}...".format(Config.PSU.port), end = '', flush = True)
-    try:
-        port = serial.Serial(
-            port            = Config.PSU.port,
-            baudrate        = Config.PSU.baudrate,
-            parity          = Config.PSU.parity,
-            stopbits        = Config.PSU.stopbits,
-            bytesize        = Config.PSU.bytesize,
-            timeout         = Config.PSU.timeout,
-            write_timeout   = Config.PSU.write_timeout
-        )
-    except Exception as e:
-        print("FAILED!")
-        print(str(e))
-        os._exit(-1)
-    else:
-        print("OK")
-        port.close()
-
-    #
     # Kill daemon
     #
     if args.kill:
         kill()
         os._exit(0)
+
+
+    #
+    # Test-open serial port
+    #
+    if not args.noserialtest:
+        print("Opening {}...".format(Config.PSU.port), end = '', flush = True)
+        try:
+            port = serial.Serial(
+                port            = Config.PSU.port,
+                baudrate        = Config.PSU.baudrate,
+                parity          = Config.PSU.parity,
+                stopbits        = Config.PSU.stopbits,
+                bytesize        = Config.PSU.bytesize,
+                timeout         = Config.PSU.timeout,
+                write_timeout   = Config.PSU.write_timeout
+            )
+        except Exception as e:
+            print("FAILED!")
+            print(str(e))
+            os._exit(-1)
+        else:
+            print("OK")
+            port.close()
+
 
 
     #

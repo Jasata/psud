@@ -5,6 +5,7 @@
 # Database.py - Jani Tammi <jasata@utu.fi>
 #
 #   0.1.0   2018.11.14  Initial version.
+#   0.1.1   2018.11.16  Replace print()'s with exceptions.
 #
 #
 import sqlite3
@@ -45,8 +46,8 @@ class Database:
                 """
                 self.db.connection.execute(sql, {"id": id, "result": result})
             except Exception as e:
-                print(str(e))
                 self.db.connection.rollback()
+                raise ValueError("ID: {}, SQL: {}".format(id, sql)) from None
             else:
                 self.db.connection.commit()
 
@@ -76,8 +77,12 @@ class Database:
                 if cursor.rowcount != 1:
                     cursor.execute(insert, values)
             except Exception as e:
-                print("Database.PSU:", str(e))
                 self.db.connection.rollback()
+                raise ValueError(
+                    "values: {}, update SQL: {}, insert SQL: {}".format(
+                        str(values), update, insert
+                    )
+                ) from None
             else:
                 self.db.connection.commit()
 
