@@ -8,6 +8,7 @@
 # main.py - Jani Tammi <jasata@utu.fi>
 #   0.1.0   2018.11.14  Initial version.
 #   0.2.0   2018.11.16  Modified for output compatible with daemon and console.
+#   0.3.0   2018.11.17  Final touches. (hopefully)
 #
 #
 # Execute this script to start the daemon.
@@ -18,12 +19,12 @@
 #       'daemonify.py' will finally enter the program's main loop, which
 #       is located in 'control.py'.
 #
-#       main.py -> daemonify.py -> control.py
+#       main.py -> daemonify.py -> control.py (using PSU.py)
 #
 #       Class files (names starting with capital letter) are used by the
 #       'control.py' main loop to execute the tasks periodically.
 #
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 __author__  = "Jani Tammi <jasata@utu.fi>"
 VERSION     = __version__
 HEADER      = """
@@ -48,7 +49,7 @@ import argparse
 
 from Config         import Config, display_config
 from pathlib        import Path
-from control        import *                # Most importantly: control.psu()
+from control        import psu
 
 
 
@@ -88,14 +89,35 @@ def start_regular_process(function, config=Config):
     log.info("Entering main loop...")
     try:
         from Lockfile import Lockfile
-        with Lockfile("/tmp/{}.lock".format(Config.PSU.Daemon.name)):
+        with Lockfile(Config.PSU.Daemon.lockfile):
             function(config)
     except Lockfile.AlreadyRunning as e:
         log.error(str(e))
     except Exception as e:
-        log.exception("Main loop ended with an exception!\n", str(e))
+        log.exception("Main loop ended with an exception!")
     else:
         log.info("Normal termination.")
+
+
+
+
+def get_psud_pid():
+    """Returns psud pid, if lock file exists and a process by the PID in the lock file exists, or None."""
+    try:
+        with open(Config.PSU.Daemon.lockfile, "r") as lockfile:
+            pid = int(lockfile.readline())
+            #
+            # Check for stale lockfile
+            #
+            try:
+                os.kill(pid, 0)
+            except:
+                return None
+            else:
+                return pid
+    except:
+        pass
+    return None
 
 
 
@@ -106,10 +128,7 @@ def kill():
             os.remove(filename)
         except OSError:
             pass
-    lockfilename = "{}/{}.lock".format(
-        Config.PSU.Daemon.lock_directory,
-        Config.PSU.Daemon.name
-    )
+    lockfilename = Config.PSU.Daemon.lockfile
     try:
         with open(lockfilename, "r") as lockfile:
             pid = int(lockfile.readline())
@@ -262,8 +281,25 @@ if __name__ == "__main__":
     Config.database_file = args.database_file
     Config.PSU.port      = args.port
     # Store daemonization flag
-    setattr(Config.PSU.Daemon, 'run_as_daemon', not (args.nodaemon or False))
+    setattr(
+        Config.PSU.Daemon,
+        "run_as_daemon",
+        not (args.nodaemon or False)
+    )
+    # Store lock file's path+name
+    setattr(
+        Config.PSU.Daemon,
+        "lockfile",
+        "{}/{}.lock".format(
+            Config.PSU.Daemon.lock_directory,
+            Config.PSU.Daemon.name
+        )
+    )
 
+
+    #
+    # Display Config class if running with DEBUG -mode
+    #
     if Config.logging_level == logging.DEBUG:
         display_config(Config)
         print("\n\n")
@@ -275,6 +311,18 @@ if __name__ == "__main__":
     if args.kill:
         kill()
         os._exit(0)
+
+    #
+    # Auto detect may return None if the port is already in use
+    #
+    pid = get_psud_pid()
+    if pid:
+        print(
+            "WARNING: '{}' seems to be already running! (PID: {})\n".format(
+                Config.PSU.Daemon.name,
+                pid
+            )
+        )
 
 
     #
@@ -292,12 +340,14 @@ if __name__ == "__main__":
             print("found!")
             print("Agilent E3631 at port '{}'.".format(Config.PSU.port))
 
-
     #
-    # Test-open serial port if we are going to run as a daemon
+    # If not autodetected, and if we will run as a daemon...
+    # we want to briefly test the serial port and report any
+    # obvious problems to the user.
     #
-    if not Config.PSU.Daemon.run_as_daemon: # args.nodaemon:
-        print("Opening {}...".format(Config.PSU.port), end = '', flush = True)
+    # NOTE: lint is confused. member variable DOES exist
+    elif Config.PSU.Daemon.run_as_daemon:
+        print("Opening '{}'...".format(Config.PSU.port), end = '', flush = True)
         try:
             port = serial.Serial(
                 port            = Config.PSU.port,
@@ -324,6 +374,13 @@ if __name__ == "__main__":
         print("Database file '{}' does NOT exist".format(Config.database_file))
         os._exit(-1)
     # TODO: Check R/W access
+    if not os.access(Config.database_file, os.W_OK | os.R_OK):
+        print(
+            "No read and write access to database file '{}'!".format(
+                Config.database_file
+            )
+        )
+        os._exit(-1)
 
 
     #

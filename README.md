@@ -22,13 +22,13 @@ This daemon is intended to be managed by PATE Monitor's System Daemon, but can b
       -h, --help                    show this help message and exit
       -d [FILE], --datafile [FILE]  PATE Monitor SQLite3 database. Default: '/srv/nginx-root/pmapi.sqlite3'
       -l [LEVEL], --log [LEVEL]     Set logging level. Default: DEBUG
-      -p [PORT], --port [PORT]      Set serial port device. Default: '/dev/ttyUSB0'
+      -p [PORT], --port [PORT]      Set serial port device. Default: 'auto'
       --nodaemon                    Do not execute as a daemon
       --kill                        Kill daemon
 
 Default values come from `Config.py`.
 
-Option `-p` has one special value; `auto`. If specified, the daemon will attempt to detect which of the system's serial ports has the Agilent power supply connected to. Otherwise, `-p` option expects to receive a valid serial device as an argument.
+Option `-p` takes either a serial device (`/dev/ttyUSB0`, ...) or `auto`. If `auto` specified, the daemon will attempt to detect which of the system's serial ports has the Agilent power supply connected to. This is done by opening each port in the system with configured (`Config.py`) port parameters and issueing a SCPI command for firmware version query. In this implementation, Agilent E3631 is identified by known version number (`1995.0`). This strategy works for this specific use case, but should not be copied to other implementations as-is.
 
 ## Single Instance Execution
 

@@ -17,14 +17,11 @@ import time
 import errno
 import fcntl
 import signal
-import syslog           # for 1st child
-import logging          # for 2nd child (the daemon proper)
+import logging
 import logging.handlers
 
 from Lockfile       import Lockfile
 
-
-__daemon_name__ = "patemon.psud"
 
 def sigterm(signum, frame):
     from Config import Config
@@ -177,7 +174,7 @@ def process(function, config):
     # We are using configured directory and only a lock file, with PID in it.
     #
     try:
-        with Lockfile("/tmp/{}.lock".format(config.PSU.Daemon.name)):
+        with Lockfile(config.PSU.Daemon.lockfile):
             function(config)
     except Lockfile.AlreadyRunning as e:
         log.error(str(e) + " Exiting!")

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 #
 # Turku University (2018) Department of Future Technologies
-# Foresail-1 / PATE Monitor / OBC Emulator
+# Foresail-1 / PATE Monitor backend
 # Configuration values from PATE Monitor's backend
 #
 import serial
@@ -38,14 +38,16 @@ class Config:
             status_check        = 10    # seconds between status check message
             housekeeping        = 60    # seconds between housekeeping retrieval
     # 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'
-    logging_level               = "DEBUG"
+    logging_level               = "INFO"
     database_file               = '/srv/nginx-root/pmapi.sqlite3'
     command_poll                = 0.1   # seconds
 
 
 
 
-
+#
+# Not perfect, but good enough for my own purposes...
+#
 def display_config(obj=Config, indent_level=0):
     """Created for class'es (might work for objects)."""
     def get_name(x):
@@ -58,7 +60,7 @@ def display_config(obj=Config, indent_level=0):
     for k, v in vars(obj).items():
         # Disregard double-underscore members
         if k[:2] != '__':
-            if type(v).__name__ in ('float', 'int', 'str', 'long', 'complex', 'NoneType'):
+            if type(v).__name__ in ('bool', 'float', 'int', 'str', 'long', 'complex', 'NoneType'):
                 print("{}{} = {}".format(" " * indent * (indent_level + 1), k, str(v) or "None"))
             elif type(v).__name__ == 'type':
                 # it's a class
@@ -68,5 +70,6 @@ def display_config(obj=Config, indent_level=0):
                 display_config(v, indent_level + 1)
             else:
                 print("ERROR: Unhandled type: '{}'".format(str(type(v))))
+
 
 # EOF
