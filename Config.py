@@ -9,7 +9,7 @@ import serial
 
 class Config:
     class PSU:
-        port          = '/dev/ttyUSB0'
+        port          = 'auto'
         baudrate      = 9600
         parity        = serial.PARITY_NONE
         stopbits      = serial.STOPBITS_TWO

@@ -23,7 +23,7 @@
 #       Class files (names starting with capital letter) are used by the
 #       'control.py' main loop to execute the tasks periodically.
 #
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__  = "Jani Tammi <jasata@utu.fi>"
 VERSION     = __version__
 HEADER      = """
@@ -275,6 +275,22 @@ if __name__ == "__main__":
     if args.kill:
         kill()
         os._exit(0)
+
+
+    #
+    # Auto detect Agilent E3631
+    #
+    if Config.PSU.port.lower() == "auto":
+        print("Auto detecting Agilent E3631 serial port...", end="", flush=True)
+        from PSU import PSU
+        Config.PSU.port = PSU.find()
+        if Config.PSU.port is None:
+            print("NOT FOUND!")
+            print("Unable to find power supply. Exiting...")
+            os._exit(-1)
+        else:
+            print("found!")
+            print("Agilent E3631 at port '{}'.".format(Config.PSU.port))
 
 
     #

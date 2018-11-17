@@ -6,6 +6,12 @@ psud runs as a daemon (unless '--nodaemon' is specified) and connects to PATE Mo
 
 All code, with the exception of `PSU.py`, are written by Jani Tammi and copyrighted under MIT license. The interface class `PSU.py` is written by NAME and is copyrighted under LICENSE. The project repository for this this file is REPOSITORY.
 
+## PEP 3143 -- Standard daemon process library
+
+This implementation does not use standard python daemon module (PEP 3143, https://pypi.org/project/python-daemon/, https://www.python.org/dev/peps/pep-3143/) because it is not part of the standard library (https://docs.python.org/3/library/) of Python version 3.5.3 (the target platform for this solution and default Python version for Debian 9 based systems). The PATE Monitor project tries to keep the number of dependencies and separate installables to minimum reasonable number, and since the implementation of a daemon is relatively simple, the design decision has been to just write the daemonization code my self, instead of adding another dependency and installable.
+
+This implementation is also somewhat different, as it is not supposed to be run as super user, and thus has not access to `/var/run` (-> `/run`) or `/var/lock` (-> `/run/lock`). This might be doable with the *python-daemon* module, but at least this way we have full control of the implementation specifics.
+
 ## Usage
 
 This daemon is intended to be managed by PATE Monitor's System Daemon, but can be managed separately, if necessary.
