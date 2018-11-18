@@ -10,20 +10,20 @@ All code, with the exception of `PSU.py`, are written by Jani Tammi and copyrigh
 
 This implementation does not use standard python [daemon module](https://pypi.org/project/python-daemon/) (as specified by [PEP 3143](https://www.python.org/dev/peps/pep-3143/) because it is not part of the [standard library](https://docs.python.org/3/library/) of Python version 3.5.3 (the target platform for this solution and default Python version for Debian 9 based systems). It was supposed to be. PEP 3143 was released already on January 26, 2009, but apparently no one took up the task of implementing the reference module for the PEP into acceptable version. As a result, no Python installation has a daemon module in its standard library. Possible reason for this can be read at [this blog post](https://dpbl.wordpress.com/2017/02/12/a-tutorial-on-python-daemon/).
 
-The PATE Monitor project tries to keep the number of dependencies and separate installables to minimum reasonable number, and since the implementation of a daemon is relatively simple, the design decision has been to just write the daemonization code my self, instead of adding another dependency and installable.
+The above means that the module that carries that mantle of PEP 3234 (or any other module that would implement daemonification) is automatically a dependency (and extra installable). The PATE Monitor project tries to keep the number of dependencies and separate installables to minimum reasonable number, and since the implementation of a daemon is relatively simple, the design decision has been to just write the daemonization code by my self, instead of adding another dependency and installable.
 
-This implementation is also somewhat different, as it is not supposed to be run as super user, and thus has not access to `/var/run` (-> `/run`) or `/var/lock` (-> `/run/lock`). This might be doable with the *python-daemon* module, but at least this way we have full control of the implementation specifics.
+This implementation is also somewhat different to *most* daemons, as it is not supposed to be executed or started with super user privileges. Thus, for example, it has no access to `/var/run` (-> `/run`) or `/var/lock` (-> `/run/lock`). This might be configurable with the *python-daemon* module, but with this design approach we have full control of the implementation specifics and none of the potential pitfalls can compromise the outcome.
 
 ## Usage
 
-This daemon is intended to be managed by PATE Monitor's System Daemon, but can be managed separately, if necessary.
+This daemon is intended to be managed by PATE Monitor's System Daemon, but can be started/stopped manually, if necessary.
 
     usage: psud [-h] [-d [FILE]] [-l [LEVEL]] [-p [PORT]] [--nodaemon] [--kill] [--status]
 
     optional arguments:
       -h, --help                    show this help message and exit
       -d [FILE], --datafile [FILE]  PATE Monitor SQLite3 database. Default: '/srv/nginx-root/pmapi.sqlite3'
-      -l [LEVEL], --log [LEVEL]     Set logging level. Default: DEBUG
+      -l [LEVEL], --log [LEVEL]     Set logging level. Default: INFO
       -p [PORT], --port [PORT]      Set serial port device. Default: 'auto'
       --nodaemon                    Do not execute as a daemon
       --kill                        Kill daemon
@@ -33,13 +33,13 @@ Default values come from `Config.py`. There are no mandatory options.
 
 **Option `-d`** specifies the SQLite3 database file that contains PATE Monitor data. Database must be readable and writable to `psud` daemon.
 
-**Option `-l`** setting allows defining logging level (as used by module `logging`). Allowed values are; `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`.
+**Option `-l`** setting allows defining logging level (as used by module `logging`). Allowed values are; `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. Recommended value is `INFO`, because `DEBUG` generates vast volumes of syslog content.
 
 **Option `-p`** takes either a serial device (`/dev/ttyUSB0`, ...) or `auto`. If `auto` specified, the daemon will attempt to detect which of the system's serial ports has the Agilent power supply connected to. This is done by opening each port in the system with configured (`Config.py`) port parameters and issueing a SCPI command for firmware version query. In this implementation, Agilent E3631 is identified by known version number (`1995.0`). This strategy works for this specific use case, but should not be copied to other implementations as-is.
 
-**Option `--nodaemon`** runs the program in terminal (can be terminated with CTRL-C).
+**Option `--nodaemon`** runs the program in the current terminal (and can be terminated with CTRL-C).
 
-**Option `--kill`** reads a PID from lock file and attempts to issue SIGTERM to that process.
+**Option `--kill`** reads a PID from lock file and attempts to issue SIGTERM to that process. *Due to pySerial specifics, this command may need to be repeated, in case the first happens exactly during serial read call.*
 
 **Option `--status`** reports on the daemon process and the contents of `psu` table in the database.
 
@@ -47,7 +47,7 @@ Default values come from `Config.py`. There are no mandatory options.
 
 This implementation uses a lock file scheme to avoid multiple instances from starting up. Because this daemon is expected to be executed with non-root privileges, the lock file cannot be located in the system default location. Instead, the lock file is placed into `/tmp` directory.
 
-It is to be noted that if the user so wishes, he can remove a lock file and start up another copy of the daemon, but the implementation itself respects the lock file.
+It is to be noted that if the user so wishes, he can remove a lock file and start up another copy of the daemon, but the implementation itself respects the lock file. Another running copy of the deamon is also unlikely to find another connected Agilent device...
 
 ## Update Intervals
 
@@ -61,9 +61,11 @@ Agilent E3631 has serial configuration; `9600,8,N,2`.
 
     (approximately: 1,146 ms / character)
 
-*Status Query*
+### Queries (for psu-table updates)
 
-The 2 characters added in each command are the line terminator characters (`\r\n`).
+The `psu` table contains six fields that need to be updated each time. This means sending out 6 query commands and receiving 6 responses.
+
+**Query Commands**
 
  - Qeury power status (`X` ? + 2 characters)
  - Query voltage setting (`Source:Voltage:Immediate?` 25 + 2 characters)
@@ -72,7 +74,13 @@ The 2 characters added in each command are the line terminator characters (`\r\n
  - Query measured current (`Measure:Current?` 16 + 2 characters)
  - Query state (`X` ? + 2 characters)
 
-The query commands alone are 94 characters plus the query lengths for power status and state queries, which can be assumed to be on overage at least 16 characters each. Total being 126 characters or more. This equals around 144,5 ms. Responses are string representations of voltages or states:
+*The 2 characters added in each command are the line terminator characters (`\r\n`).*
+
+The query commands alone are 94 characters plus the query lengths for power status and state queries, which can be assumed to be on overage at least 16 characters each. Total being 126 characters or more. (This equals around 144,5 ms).
+
+**Query Replies**
+
+Responses are string representations of settings, measured values or device states:
 
  - Response power status (`d` 1 + 2 characters)
  - Response voltage setting (`dd.dddd` 7 + 2 characters)
@@ -83,17 +91,17 @@ The query commands alone are 94 characters plus the query lengths for power stat
 
 Responses equal to at least 42 characters, totaling around 48,2 ms.
 
-Total transmission time is around 192,7 ms or more - same assumption is 200 ms.
+**Total transmission time is around 192,7 ms or more - a safe assumption would be 200 ms.**
 
-**Commands**
+### Commands
 
-The daemon is built to process one command each interval, which means that we are interested in the longest commmand-reply sequence. This is (most likely) the voltage setting command:
+The daemon is built to process one command (set voltage, set current limit, set power) each interval, which means that we are interested in the longest commmand-reply sequence. This is (most likely) the voltage setting command:
 
     Source:Voltage:Immediate dd.ddd
 
-31 + 2 characters, with no reply at all, giving us around 37,9 ms. Safe time allocation would be 40 ms.
+31 + 2 characters, with no reply at all, giving us around 37,9 ms. **Safe time allocation would be 40 ms.**
 
-**Interval values**
+## Interval Values
 
 A full cycle of populating the `psu` table and processing one command requires around 240 ms. This means that "update" events should not schedule more often than every 250 ms or more. This value is increased 40 ms for each "command" event that fired (or begins to lapse) during "update" interval.
 
