@@ -27,10 +27,17 @@ This daemon is intended to be managed by PATE Monitor's System Daemon, but can b
       -p [PORT], --port [PORT]      Set serial port device. Default: 'auto'
       --nodaemon                    Do not execute as a daemon
       --kill                        Kill daemon
+      --status                      Get status report about the daemon
 
 Default values come from `Config.py`.
 
 Option `-p` takes either a serial device (`/dev/ttyUSB0`, ...) or `auto`. If `auto` specified, the daemon will attempt to detect which of the system's serial ports has the Agilent power supply connected to. This is done by opening each port in the system with configured (`Config.py`) port parameters and issueing a SCPI command for firmware version query. In this implementation, Agilent E3631 is identified by known version number (`1995.0`). This strategy works for this specific use case, but should not be copied to other implementations as-is.
+
+**Option `-nodaemon`** runs the program in terminal (can be terminated with CTRL-C).
+
+**Option `--kill`** reads a PID from lock file and attempts to issue SIGTERM to that process.
+
+**Option `-status`** reports on the daemon process and the contents of `psu` table in the database.
 
 ## Single Instance Execution
 
@@ -74,7 +81,7 @@ Responses equal to at least 42 characters, totaling around 48,2 ms.
 
 Total transmission time is around 192,7 ms or more - same assumption is 200 ms.
 
-*Commands*
+**Commands**
 
 The daemon is built to process one command each interval, which means that we are interested in the longest commmand-reply sequence. This is (most likely) the voltage setting command:
 
@@ -82,7 +89,7 @@ The daemon is built to process one command each interval, which means that we ar
 
 31 + 2 characters, with no reply at all, giving us around 37,9 ms. Safe time allocation would be 40 ms.
 
-*Interval values*
+**Interval values**
 
 A full cycle of populating the `psu` table and processing one command requires around 240 ms. This means that "update" events should not schedule more often than every 250 ms or more. This value is increased 40 ms for each "command" event that fired (or begins to lapse) during "update" interval.
 
