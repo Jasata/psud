@@ -191,7 +191,7 @@ def status():
             s="Lock file '{}'".format(
                 Config.PSU.Daemon.lockfile
             ),
-            p=
+            p=status_msg
         )
     )
     # process
