@@ -2,13 +2,13 @@
 
 This solution implements minimal RS-232 remote control of Agilent E3631 power supply.
 
-psud runs as a daemon (unless '--nodaemon' is specified) and connects to PATE Monitor SQLite database to monitor and process "PSU" commands and to periodically update the `psu` table with settings and measured voltage and current values.
+psud runs as a daemon (unless `--nodaemon` is specified) and connects to PATE Monitor SQLite database to monitor and process "PSU" commands and to periodically update the `psu` table with settings and measured voltage and current values.
 
-All code, with the exception of `PSU.py`, are written by Jani Tammi and copyrighted under MIT license. The interface class `PSU.py` is written by NAME and is copyrighted under LICENSE. The project repository for this this file is REPOSITORY.
+All code, with the exception of `PSU.py`, are written by Jani Tammi and copyrighted under MIT license. The interface class `PSU.py` is written by *NAME* and is copyrighted under *LICENSE*. The project repository for this this file is *REPOSITORY*. (to be updated once PSU interface class is completed by the assigned programmer).
 
-## PEP 3143 -- Standard daemon process library
+## Why not PEP 3143? (Standard daemon process library)
 
-This implementation does not use standard python daemon module (PEP 3143, https://pypi.org/project/python-daemon/, https://www.python.org/dev/peps/pep-3143/) because it is not part of the standard library (https://docs.python.org/3/library/) of Python version 3.5.3 (the target platform for this solution and default Python version for Debian 9 based systems). It should be, since PEP 3143 is dated January 26, 2009 and Python version 3.5 was released September 13, 2015, but it's simply not there in the default debian Python 3.5.3 package. Possible reason for this can be read at https://dpbl.wordpress.com/2017/02/12/a-tutorial-on-python-daemon/
+This implementation does not use standard python [daemon module](https://pypi.org/project/python-daemon/) (as specified by [PEP 3143](https://www.python.org/dev/peps/pep-3143/) because it is not part of the [standard library](https://docs.python.org/3/library/) of Python version 3.5.3 (the target platform for this solution and default Python version for Debian 9 based systems). It was supposed to be. PEP 3143 was released already on January 26, 2009, but apparently no one took up the task of implementing the reference module for the PEP into acceptable version. As a result, no Python installation has a daemon module in its standard library. Possible reason for this can be read at [this blog post](https://dpbl.wordpress.com/2017/02/12/a-tutorial-on-python-daemon/).
 
 The PATE Monitor project tries to keep the number of dependencies and separate installables to minimum reasonable number, and since the implementation of a daemon is relatively simple, the design decision has been to just write the daemonization code my self, instead of adding another dependency and installable.
 
