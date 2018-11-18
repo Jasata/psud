@@ -7,6 +7,7 @@
 #
 # main.py - Jani Tammi <jasata@utu.fi>
 #   0.1.0   2018.11.15  Initial version.
+#   0.2.0   2018.11.18  Static status methods added.
 #
 #
 # Provide a combined lock/PID file for user space daemon.
@@ -42,8 +43,12 @@ class Lockfile:
             self.fd.flush()
         except BlockingIOError as e:
             if e.errno == errno.EAGAIN:
+                # Action failed due to locking
                 pid = self.fd.readline()
-                raise Lockfile.AlreadyRunning(pid, "Another process already running!") from None
+                raise Lockfile.AlreadyRunning(
+                    pid or "unknown",
+                    "Another process already running!"
+                ) from None
         except Exception as e:
             raise
 
@@ -60,16 +65,57 @@ class Lockfile:
                 raise
 
 
+    @staticmethod
+    def lockfilestatus(filename: str) -> tuple:
+        """Checks if lock file exists and if the file is locked. (exists, locked)"""
+        if not os.path.isfile(filename):
+            return (False, False)
+        # Exists - test for a lock
+        try:
+            fd = open(filename, 'a')
+            fcntl.lockf(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as e:
+            if e.errno == errno.EAGAIN:
+                return (True, True)
+        finally:
+            try:
+                fd.close()
+            except:
+                pass
+        return (True, False)
+
+
+    @staticmethod
+    def lockfilestatusstring(filename: str) -> str:
+        t = Lockfile.lockfilestatus(filename)
+        if not t[0]:
+            return "file does not exist!"
+        if not t[1]:
+            return "file not locked!"
+        return "OK"
 
 
 
 if __name__ == '__main__':
 
+    filename = "/tmp/locktest.lock"
+    def print_status(f):
+        print(
+            "{s:.<60} {p}".format(
+                s=filename,
+                p=Lockfile.lockfilestatusstring(filename)
+            )
+        )
+
+    print("This WILL report 'Not locked!' because it is this same process that created the lock file and thus, for us, there will be no issues (re-)acquiring the same lock. Another process would report the lock correctly.")
+    print_status(filename)
     try:
-        with Lockfile("/tmp/locktest.lock"):
-            time.sleep(10)
+        with Lockfile(filename):
+            print_status(filename)
+            time.sleep(3)
     except Lockfile.AlreadyRunning as e:
         print(str(e))
+    print_status(filename)
 
 
 

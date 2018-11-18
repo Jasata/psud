@@ -8,7 +8,9 @@ All code, with the exception of `PSU.py`, are written by Jani Tammi and copyrigh
 
 ## PEP 3143 -- Standard daemon process library
 
-This implementation does not use standard python daemon module (PEP 3143, https://pypi.org/project/python-daemon/, https://www.python.org/dev/peps/pep-3143/) because it is not part of the standard library (https://docs.python.org/3/library/) of Python version 3.5.3 (the target platform for this solution and default Python version for Debian 9 based systems). The PATE Monitor project tries to keep the number of dependencies and separate installables to minimum reasonable number, and since the implementation of a daemon is relatively simple, the design decision has been to just write the daemonization code my self, instead of adding another dependency and installable.
+This implementation does not use standard python daemon module (PEP 3143, https://pypi.org/project/python-daemon/, https://www.python.org/dev/peps/pep-3143/) because it is not part of the standard library (https://docs.python.org/3/library/) of Python version 3.5.3 (the target platform for this solution and default Python version for Debian 9 based systems). It should be, since PEP 3143 is dated January 26, 2009 and Python version 3.5 was released September 13, 2015, but it's simply not there in the default debian Python 3.5.3 package. Possible reason for this can be read at https://dpbl.wordpress.com/2017/02/12/a-tutorial-on-python-daemon/
+
+The PATE Monitor project tries to keep the number of dependencies and separate installables to minimum reasonable number, and since the implementation of a daemon is relatively simple, the design decision has been to just write the daemonization code my self, instead of adding another dependency and installable.
 
 This implementation is also somewhat different, as it is not supposed to be run as super user, and thus has not access to `/var/run` (-> `/run`) or `/var/lock` (-> `/run/lock`). This might be doable with the *python-daemon* module, but at least this way we have full control of the implementation specifics.
 
@@ -94,5 +96,23 @@ For example, "command" intervals trigger every 100 ms, meaning that "update" int
 
 Usable interval values are thus; `psu` table updates every 360 ms and command processing every 100 ms. With these values, the should never be any skew. Event triggering window (allow early event triggering for the other event, if it would follow withing set time window) should be half of the command processing time (40 ms / 2 = 20 ms).
 
-(shorthands)
+## Version 0.4.0 Testing Results
+
+    Nov 18 16:52:04 nuc patemon.psud[3793]: PATE Monitor PSU Daemon initializing...
+    Nov 18 16:52:04 nuc patemon.psud[3793]: Entering main loop...
+    Nov 18 16:52:05 nuc patemon.psud[3793]: PSU:update took 216.449 ms, previous 500.3 ms ago
+    Nov 18 16:52:06 nuc patemon.psud[3793]: PSU:update took 215.375 ms, previous 500.4 ms ago
+    Nov 18 16:52:06 nuc patemon.psud[3793]: PSU:update took 218.895 ms, previous 499.6 ms ago
+    Nov 18 16:52:07 nuc patemon.psud[3793]: PSU:update took 214.198 ms, previous 500.4 ms ago
+    Nov 18 16:52:07 nuc patemon.psud[3793]: PSU:update took 214.786 ms, previous 499.6 ms ago
+    Nov 18 16:52:08 nuc patemon.psud[3793]: PSU:update took 214.805 ms, previous 500.4 ms ago
+    Nov 18 16:52:08 nuc patemon.psud[3793]: PSU:update took 215.326 ms, previous 499.6 ms ago
+    Nov 18 16:52:08 nuc patemon.psud[3793]: Terminating...
+
+    Nov 18 17:09:22 nuc patemon.psud[3830]: PSU:command 'SET VOLTAGE' took 128.585 ms
+    Nov 18 17:09:29 nuc patemon.psud[3830]: PSU:command 'SET POWER' took 5.467 ms
+
+Update took about 10% more than calculated, which is not too bad. However, `SET VOLTAGE` taking almost 130 ms is a concern (was supposed to take no more than 40 ms).
+
+Shorthands should be used for general performance improvement and command processing needs to be examined in detail.
 

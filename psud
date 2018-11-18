@@ -5,10 +5,11 @@
 # Foresail-1 / PATE Monitor / Middleware (PMAPI)
 # PSU controller daemon
 #
-# main.py - Jani Tammi <jasata@utu.fi>
+# psud.py - Jani Tammi <jasata@utu.fi>
 #   0.1.0   2018.11.14  Initial version.
 #   0.2.0   2018.11.16  Modified for output compatible with daemon and console.
 #   0.3.0   2018.11.17  Final touches. (hopefully)
+#   0.4.0   2018.11.17  Refactored.
 #
 #
 # Execute this script to start the daemon.
@@ -24,7 +25,7 @@
 #       Class files (names starting with capital letter) are used by the
 #       'control.py' main loop to execute the tasks periodically.
 #
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __author__  = "Jani Tammi <jasata@utu.fi>"
 VERSION     = __version__
 HEADER      = """
@@ -46,143 +47,11 @@ import logging.handlers
 import sqlite3
 import platform
 import argparse
-
-from Config         import Config, display_config
 from pathlib        import Path
-from control        import psu
 
-
-
-
-def start_regular_process(function, config=Config):
-    """Change directory, create lock file, run."""
-
-    try:
-        os.chdir(config.PSU.Daemon.working_directory)
-    except Exception as e:
-        print(
-            "Unable to change directory to '{}'!\n".format(
-                config.PSU.Daemon.working_directory
-            )
-        )
-        print(str(e))
-        os._exit(-1)
-
-
-    #
-    # Set up logging
-    #
-    log = logging.getLogger(config.PSU.Daemon.name)
-    log.setLevel(logging.DEBUG)
-    handler = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter(
-        fmt='%(asctime)s.%(msecs)03d: %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    handler.setFormatter(formatter)
-    log.addHandler(handler)
-
-
-    #
-    # Execute main loop
-    #
-    log.info("Entering main loop...")
-    try:
-        from Lockfile import Lockfile
-        with Lockfile(Config.PSU.Daemon.lockfile):
-            function(config)
-    except Lockfile.AlreadyRunning as e:
-        log.error(str(e))
-    except Exception as e:
-        log.exception("Main loop ended with an exception!")
-    else:
-        log.info("Normal termination.")
-
-
-
-
-def get_psud_pid():
-    """Returns psud pid, if lock file exists and a process by the PID in the lock file exists, or None."""
-    try:
-        with open(Config.PSU.Daemon.lockfile, "r") as lockfile:
-            pid = int(lockfile.readline())
-            #
-            # Check for stale lockfile
-            #
-            try:
-                os.kill(pid, 0)
-            except:
-                return None
-            else:
-                return pid
-    except:
-        pass
-    return None
-
-
-
-def kill():
-    """Reads PID from a lockfile, kills pid and removed lockfile."""
-    def rm(filename):
-        try:
-            os.remove(filename)
-        except OSError:
-            pass
-    lockfilename = Config.PSU.Daemon.lockfile
-    try:
-        with open(lockfilename, "r") as lockfile:
-            pid = int(lockfile.readline())
-            #
-            # Check for stale lockfile
-            #
-            try:
-                os.kill(pid, 0)
-            except OSError:
-                print(
-                    "Stale lockfile. Daemon (pid: {}) does not exist.".format(
-                        pid
-                    )
-                )
-                print(
-                    "Removing stale lockfile '{}'".format(
-                        lockfilename
-                    )
-                )
-                rm(lockfilename)
-                os._exit(0)
-            #
-            # PID is running, proceed in killing it
-            #
-            print("Terminating pid {}...".format(pid))
-            os.kill(pid, signal.SIGTERM)
-            # Try to verify kill (not sure if os.kill() returns immediately)
-            for _ in range(50):
-                try:
-                    os.kill(pid, 0)
-                except OSError:
-                    rm(lockfilename)
-                    print("Daemon killed.")
-                    os._exit(0)
-                else:
-                    time.sleep(0.05)
-            # Strange - process seems to be still alive
-            print("ERROR: Process ({}) seems to be still alive!".format(pid))
-    except FileNotFoundError:
-        print("ERROR: No lock file ('{}') for the daemon!".format(
-            lockfilename
-            )
-        )
-        os._exit(-1)
-    except ValueError:
-        print("ERROR: Content of the lock file is not a valid process id!")
-        os._exit(-1)
-    except OSError:
-        print(
-            "ERROR: pid ({}) does not respond to SIGTERM.".format(
-                pid or "unknown"
-            )
-        )
-        os._exit(-1)
+# Application specific
+import process
+from Config         import Config, display_config
 
 
 
@@ -192,6 +61,7 @@ def kill():
 # Start-up routines
 #
 if __name__ == "__main__":
+
 
     # Print header with additional info
     print(HEADER)
@@ -220,7 +90,6 @@ if __name__ == "__main__":
             platform.architecture()[0]
         )
     )
-
 
 
     #
@@ -272,14 +141,21 @@ if __name__ == "__main__":
         help = 'Kill daemon',
         action = 'store_true'
     )
+    parser.add_argument(
+        '--status',
+        help = 'Get status report about the daemon',
+        action = 'store_true'
+    )
     args = parser.parse_args()
 
+
     #
-    # Create instance of Config and update according to commandline.
+    # Options that have default values are guaranteed to exist.
     #
-    Config.logging_level = getattr(logging, args.logging_level)
     Config.database_file = args.database_file
     Config.PSU.port      = args.port
+    # Convert to numeric logging level
+    Config.logging_level = getattr(logging, args.logging_level)
     # Store daemonization flag
     setattr(
         Config.PSU.Daemon,
@@ -306,17 +182,26 @@ if __name__ == "__main__":
 
 
     #
+    # Display status report
+    #
+    if args.status:
+        process.status()
+        os._exit(0)
+
+
+    #
     # Kill daemon
     #
     if args.kill:
-        kill()
+        process.kill()
         os._exit(0)
 
+
     #
-    # Auto detect may return None if the port is already in use
+    # Warn user if psud is already running
     #
-    pid = get_psud_pid()
-    if pid:
+    pid = process.pid()
+    if process.is_running(pid):
         print(
             "WARNING: '{}' seems to be already running! (PID: {})\n".format(
                 Config.PSU.Daemon.name,
@@ -337,8 +222,7 @@ if __name__ == "__main__":
             print("Unable to find power supply. Exiting...")
             os._exit(-1)
         else:
-            print("found!")
-            print("Agilent E3631 at port '{}'.".format(Config.PSU.port))
+            print("found at port '{}'.\n".format(Config.PSU.port))
 
     #
     # If not autodetected, and if we will run as a daemon...
@@ -386,12 +270,11 @@ if __name__ == "__main__":
     #
     # Start-up routines completed, deamonify (or don't)
     #
-    from control import psu
+    import control
     if args.nodaemon:
-        start_regular_process(psu, Config)
+        process.start_regular_process(control.psu)
     else:
-        import daemonify
-        daemonify.process(psu, Config)
+        process.daemonify(control.psu)
 
 
 

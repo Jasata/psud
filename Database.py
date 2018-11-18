@@ -6,8 +6,10 @@
 #
 #   0.1.0   2018.11.14  Initial version.
 #   0.1.1   2018.11.16  Replace print()'s with exceptions.
+#   0.1.2   2018.11.18  Static 'status' methods added.
 #
 #
+import os
 import sqlite3
 
 from Config import Config
@@ -117,5 +119,92 @@ class Database:
         self.connection.execute("DELETE FROM psu")
         self.connection.commit()
         self.connection.close()
+
+
+    @staticmethod
+    def filestatus(filename: str) -> tuple:
+        """Returns tuple of boolean values (isfile, accessread, accesswrite)."""
+        return (
+            os.path.isfile(filename),
+            os.access(filename, os.R_OK),
+            os.access(filename, os.W_OK)
+        )
+
+
+    @staticmethod
+    def filestatusstring(filename: str) -> str:
+        t = Database.filestatus(filename)
+        if not t[0]:
+            return "file does not exist!"
+        if not t[1] and not t[2]:
+            return "not readable or writable!"
+        if not t[1]:
+            return "not readable!"
+        if not t[2]:
+            return "not writable!"
+        return "OK"
+
+
+    @staticmethod
+    def psutablestatus(filename: str) -> tuple:
+        """Returns tuple of boolean 'exists' values (psu_table, psu_row)."""
+        if not os.path.isfile(filename):
+            raise ValueError(
+                "Specifield database file '{}' does not exist!".format(
+                    filename
+                )
+            )
+        if not os.access(filename, os.R_OK):
+            raise ValueError(
+                "Database file '{}' is not readable!".format(
+                    filename
+                )
+            )
+        if not os.access(filename, os.W_OK):
+            raise ValueError(
+                "Database file '{}' is not writable!".format(
+                    filename
+                )
+            )
+        try:
+            with sqlite3.connect(filename) as db:
+                result = db.execute("SELECT * FROM psu").fetchone()
+            if result:
+                return (True, True)
+            else:
+                return (True, False)
+        except sqlite3.OperationalError as e:
+            if str(e)[:len("no such table")] == "no such table":
+                return (False, False)
+
+
+    @staticmethod
+    def psutablestatusstring(filename: str) -> str:
+        t = Database.psutablestatus(filename)
+        if not t[0]:
+            return "table does not exist!"
+        if not t[1]:
+            return "no data!"
+        return "OK"
+
+
+    @staticmethod
+    def lastupdate(filename: str) -> float:
+        """Returns the number of seconds since last update."""
+        try:
+            sql = """
+                SELECT (julianday('now') - julianday(modified)) * 86400
+                FROM psu
+                """
+            with sqlite3.connect(Config.database_file) as db:
+                result = db.execute(sql).fetchone()
+
+            if result:
+                return float(result[0])
+            else:
+                return None
+        except:
+            return None
+
 
 # EOF

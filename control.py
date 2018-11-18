@@ -7,6 +7,7 @@
 #
 # control.py - Jani Tammi <jasata@utu.fi>
 #   0.1     2018.11.14  Initial version.
+#   0.2     2018.11.18  Added status 
 #
 #
 # Loop that processess 'command' table rows into SCPI commands
@@ -16,8 +17,11 @@
 #
 import os
 import sys
+import time
 import logging
 
+# Application specific
+from Config             import Config
 from IntervalScheduler  import IntervalScheduler
 from Database           import Database
 from PSU                import PSU
@@ -36,42 +40,37 @@ def ticker():
 
 
 
-    # def display_psu(row: tuple):
-    #     print(
-    #         "\r{:>3} {:0.03f}/{:0.03f} V {:0.03f}/{:0.03f} A "
-    #         .format(
-    #             row[1],
-    #             row[5],
-    #             row[2],
-    #             row[4],
-    #             row[3]
-    #         ),
-    #         end="",
-    #         flush=True
-    #     )
-def psu(config):
+def psu():
+    """PSU controller main loop."""
     try:
-        log = logging.getLogger(config.PSU.Daemon.name)
-        psu = PSU(config.PSU.port)
+        log = logging.getLogger(Config.PSU.Daemon.name)
+        psu = PSU(Config.PSU.port)
         with \
-            Database(config.database_file) as db, \
+            Database(Config.database_file) as db, \
             IntervalScheduler(
-                command_interval = config.PSU.Daemon.Interval.command,
-                update_interval  = config.PSU.Daemon.Interval.update
+                command_interval = Config.PSU.Daemon.Interval.command,
+                update_interval  = Config.PSU.Daemon.Interval.update
             ) as event:
+            log.info("Entering main loop...")
+            lastupdate = time.time()
             while True:
-                if not config.PSU.Daemon.run_as_daemon:
+                if not Config.PSU.Daemon.run_as_daemon:
                     ticker()
                 events = event.next()
+                #
+                # 'command' table read event
+                #
                 if events & IntervalScheduler.COMMAND:
                     # (id, command, value)
                     cmd = db.command.next()
                     if cmd:
+                        now = time.time()
                         log.debug(cmd)
                         if cmd[1] == "SET VOLTAGE":
                             try:
                                 psu.voltage = float(cmd[2])
                             except Exception as e:
+                                log.exception("PSU:SET VOLTAGE failed!")
                                 db.command.close(
                                     cmd[0],
                                     str(e).replace('\n', '\\n')
@@ -81,10 +80,16 @@ def psu(config):
                                     cmd[0],
                                     str(psu.voltage)
                                 )
+                                log.debug(
+                                    "PSU:command '{}' took {:1.3f} ms".format(
+                                        cmd[1], (time.time() - now)  * 1000
+                                    )
+                                )
                         elif cmd[1] == "SET CURRENT LIMIT":
                             try:
                                 psu.current_limit = float(cmd[2])
                             except Exception as e:
+                                log.exception("PSU:SET CURRENT LIMIT failed!")
                                 db.command.close(
                                     cmd[0],
                                     str(e).replace('\n', '\\n')
@@ -94,10 +99,16 @@ def psu(config):
                                     cmd[0],
                                     str(psu.current_limit)
                                 )
+                                log.debug(
+                                    "PSU:command '{}' took {:1.3f} ms".format(
+                                        cmd[1], (time.time() - now)  * 1000
+                                    )
+                                )
                         elif cmd[1] == "SET POWER":
                             try:
                                 psu.power = (cmd[2] == "ON")
                             except Exception as e:
+                                log.exception("PSU:SET POWER failed!")
                                 db.command.close(
                                     cmd[0],
                                     str(e).replace('\n', '\\n')
@@ -107,10 +118,31 @@ def psu(config):
                                     cmd[0],
                                     ("OFF", "ON")[psu.power]
                                 )
+                                log.debug(
+                                    "PSU:command '{}' took {:1.3f} ms".format(
+                                        cmd[1], (time.time() - now)  * 1000
+                                    )
+                                )
+                #
+                # 'psu' table update event
+                #
                 if events & IntervalScheduler.UPDATE:
-                    db.psu.update(psu.values)
+                    now = time.time()
+                    try:
+                        db.psu.update(psu.values)
+                    except:
+                        log.exception("PSU:update failed!")
+                    else:
+                        log.debug(
+                            "PSU:update took {:1.3f} ms, previous {:1.1f} ms ago".format(
+                                (time.time() - now)  * 1000,
+                                (now - lastupdate) * 1000
+                            )
+                        )
+                        lastupdate = now
     except KeyboardInterrupt:
-        # print() would be OK here, because daemon code can never receive KeyboardInterrupt
+        # print() would be OK here, because daemon code
+        # can never receive KeyboardInterrupt
         log.info("Terminated with CTRL-C")
         pass
 
