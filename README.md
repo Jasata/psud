@@ -29,9 +29,13 @@ This daemon is intended to be managed by PATE Monitor's System Daemon, but can b
       --kill                        Kill daemon
       --status                      Get status report about the daemon
 
-Default values come from `Config.py`.
+Default values come from `Config.py`. There are no mandatory options.
 
-Option `-p` takes either a serial device (`/dev/ttyUSB0`, ...) or `auto`. If `auto` specified, the daemon will attempt to detect which of the system's serial ports has the Agilent power supply connected to. This is done by opening each port in the system with configured (`Config.py`) port parameters and issueing a SCPI command for firmware version query. In this implementation, Agilent E3631 is identified by known version number (`1995.0`). This strategy works for this specific use case, but should not be copied to other implementations as-is.
+**Option `-d`** specifies the SQLite3 database file that contains PATE Monitor data. Database must be readable and writable to `psud` daemon.
+
+**Option `-l`** setting allows defining logging level (as used by module `logging`). Allowed values are; `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`.
+
+**Option `-p`** takes either a serial device (`/dev/ttyUSB0`, ...) or `auto`. If `auto` specified, the daemon will attempt to detect which of the system's serial ports has the Agilent power supply connected to. This is done by opening each port in the system with configured (`Config.py`) port parameters and issueing a SCPI command for firmware version query. In this implementation, Agilent E3631 is identified by known version number (`1995.0`). This strategy works for this specific use case, but should not be copied to other implementations as-is.
 
 **Option `-nodaemon`** runs the program in terminal (can be terminated with CTRL-C).
 
