@@ -67,7 +67,7 @@ class Lockfile:
 
     @staticmethod
     def lockfilestatus(filename: str) -> tuple:
-        """Checks if lock file exists and if the file is locked. (exists, locked)"""
+        """Checks if lock file exists and if the file is locked. (exists, locked). NOTE: Can also raise PermissionError (13), if the daemon has been started as another user (or super user). This condition is to be handled by the caller."""
         if not os.path.isfile(filename):
             return (False, False)
         # Exists - test for a lock

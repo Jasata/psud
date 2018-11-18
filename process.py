@@ -178,13 +178,20 @@ def status():
         )
     )
     # lockfile
+    try:
+        status_msg = Lockfile.lockfilestatusstring(Config.PSU.Daemon.lockfile)
+    except PermissionError as e:
+        if e.errno == errno.EACCES:
+            status_msg = "no access - daemon started by different user!"
+        else:
+            raise
     print(
         "{s:.<{w}} {p}".format(
             w=width,
             s="Lock file '{}'".format(
                 Config.PSU.Daemon.lockfile
             ),
-            p=Lockfile.lockfilestatusstring(Config.PSU.Daemon.lockfile)
+            p=
         )
     )
     # process
