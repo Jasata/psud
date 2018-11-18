@@ -10,6 +10,7 @@
 #   0.2.0   2018.11.16  Modified for output compatible with daemon and console.
 #   0.3.0   2018.11.17  Final touches. (hopefully)
 #   0.4.0   2018.11.17  Refactored.
+#   0.4.1   2018.11.18  Minor fixes.
 #
 #
 # Execute this script to start the daemon.
@@ -25,7 +26,7 @@
 #       Class files (names starting with capital letter) are used by the
 #       'control.py' main loop to execute the tasks periodically.
 #
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 __author__  = "Jani Tammi <jasata@utu.fi>"
 VERSION     = __version__
 HEADER      = """
@@ -52,6 +53,7 @@ from pathlib        import Path
 # Application specific
 import process
 from Config         import Config, display_config
+from Database       import Database
 
 
 
@@ -254,14 +256,11 @@ if __name__ == "__main__":
     #
     # Check that database file exists
     #
-    if not os.path.isfile(Config.database_file):
-        print("Database file '{}' does NOT exist".format(Config.database_file))
-        os._exit(-1)
-    # TODO: Check R/W access
-    if not os.access(Config.database_file, os.W_OK | os.R_OK):
+    if not all(Database.filestatus(Config.database_file)):
         print(
-            "No read and write access to database file '{}'!".format(
-                Config.database_file
+            "Database '{}': {}".format(
+                Config.database_file,
+                Database.filestatusstring(Config.database_file)
             )
         )
         os._exit(-1)

@@ -65,7 +65,7 @@ def psu():
                     cmd = db.command.next()
                     if cmd:
                         now = time.time()
-                        log.debug(cmd)
+                        log.info(cmd)
                         if cmd[1] == "SET VOLTAGE":
                             try:
                                 psu.voltage = float(cmd[2])

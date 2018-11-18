@@ -265,7 +265,6 @@ def start_regular_process(function):
     #
     # Execute main loop
     #
-    log.info("Entering main loop...")
     try:
         from Lockfile import Lockfile
         with Lockfile(Config.PSU.Daemon.lockfile):

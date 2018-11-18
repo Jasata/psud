@@ -15,7 +15,7 @@ import sqlite3
 from Config import Config
 
 class Database:
-    # Class instance will have only .connection
+    # Class instance will have only '.connection' member.
     # If cursor is needed, it has to be created on-demand.
 
     class Command:
@@ -53,13 +53,6 @@ class Database:
             else:
                 self.db.connection.commit()
 
-        # def enter_command(self, values: dict) -> int:
-        #     sql = "INSERT INTO command (session_id, {}) VALUES (1, {})".format(
-        #         ",".join([k for k, _ in values.items()]),
-        #         ",".join([":"+k for k, _ in values.items()])
-        #     )
-        #     self.cursor.execute(sql, values)
-        #     return self.cursor.lastrowid
 
     class PSU:
         def __init__(self, db):
@@ -88,9 +81,6 @@ class Database:
             else:
                 self.db.connection.commit()
 
-        # def get_psu(self) -> tuple:
-        #     return self.cursor.execute("SELECT * FROM psu").fetchone()
-
 
     #
     # Class Database initializer
@@ -105,7 +95,6 @@ class Database:
         sql = "SELECT 1 FROM sqlite_master WHERE type='table' AND name='psu'"
         if not self.connection.execute(sql).fetchall():
             raise ValueError("Table 'psu' does not exist!")
-        #self.connection.execute("PRAGMA journal_mode=WAL")
 
 
     def __enter__(self):
