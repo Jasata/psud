@@ -18,7 +18,7 @@ This implementation is also somewhat different, as it is not supposed to be run 
 
 This daemon is intended to be managed by PATE Monitor's System Daemon, but can be managed separately, if necessary.
 
-    usage: psud [-h] [-d [FILE]] [-l [LEVEL]] [-p [SERIAL_PORT]] [--nodaemon] [--kill]
+    usage: psud [-h] [-d [FILE]] [-l [LEVEL]] [-p [PORT]] [--nodaemon] [--kill] [--status]
 
     optional arguments:
       -h, --help                    show this help message and exit
