@@ -37,11 +37,11 @@ Default values come from `Config.py`. There are no mandatory options.
 
 **Option `-p`** takes either a serial device (`/dev/ttyUSB0`, ...) or `auto`. If `auto` specified, the daemon will attempt to detect which of the system's serial ports has the Agilent power supply connected to. This is done by opening each port in the system with configured (`Config.py`) port parameters and issueing a SCPI command for firmware version query. In this implementation, Agilent E3631 is identified by known version number (`1995.0`). This strategy works for this specific use case, but should not be copied to other implementations as-is.
 
-**Option `-nodaemon`** runs the program in terminal (can be terminated with CTRL-C).
+**Option `--nodaemon`** runs the program in terminal (can be terminated with CTRL-C).
 
 **Option `--kill`** reads a PID from lock file and attempts to issue SIGTERM to that process.
 
-**Option `-status`** reports on the daemon process and the contents of `psu` table in the database.
+**Option `--status`** reports on the daemon process and the contents of `psu` table in the database.
 
 ## Single Instance Execution
 
