@@ -3,9 +3,9 @@
 # psu-emulator.py - Jani Tammi <jasata@utu.fi>
 #   0.1     2018.11.12  Initial version.
 #   0.2     2018.11.14  Enchanced with more replies.
+#   0.3     2018.11.24  Added command-reply display option.
 #
 #   Trivial Agilent PSU emulator.
-#	This version replies only to version query.
 #	Requires pyserial
 #
 #   # apt install python3-serial
@@ -20,7 +20,7 @@ import serial
 import platform
 import argparse
 
-__version__ = "0.2"
+__version__ = "0.3"
 __fileName   = os.path.basename(__file__)
 
 
@@ -87,13 +87,13 @@ class PSU:
     _circuit_voltage    = 0.0
 
     # testing __init__()
-    def __init__(self):
+    def __init__(self, display_state = False):
         self.measure            = self.Measure(self)
         self._power             = False
         self._voltage           = 0.0
         self._current_limit     = 4.4
         self._over_current      = False
-        # self._run_circuit()
+        self._cfg_display_state = display_state
 
     def _run_circuit(self):
         """Applies U / R and sets overcurrent accordingly"""
@@ -113,15 +113,16 @@ class PSU:
             self._over_current = True
         else:
             self._over_current = False
-        print("\r[{:>3}] {:1.3f}/{:1.3f} V, {:1.3f}/{:1.3f} A @ {:1.3} R".format(
-            ("OFF", "ON")[self.power],
-            self._circuit_voltage, self._voltage,
-            self._circuit_current, self._current_limit,
-            r_now
-            ),
-            end = "",
-            flush = True
-        )
+        if self._cfg_display_state:
+            print("\r[{:>3}] {:1.3f}/{:1.3f} V, {:1.3f}/{:1.3f} A @ {:1.3} R".format(
+                ("OFF", "ON")[self.power],
+                self._circuit_voltage, self._voltage,
+                self._circuit_current, self._current_limit,
+                r_now
+                ),
+                end = "",
+                flush = True
+            )
 
     def _load_resistance(self) -> float:
         """R changes according to what the load does. This randomizes it."""
@@ -205,7 +206,7 @@ def source(cmdtree: list):
         else:
             psu.voltage = float(act.split(' ')[1])
     else:
-        print("Invalid subsection")
+        print("Invalid subsection:", fnc, cmdtree)
     return None
 # elif cmd == "source:voltage:immediate?":
 
@@ -216,9 +217,12 @@ def inst(cmdtree: list):
 def instrument(cmdtree: list):
     fnc = cmdtree.pop(0)
     if fnc in ("sel?", "select?"):
-        return "P6V"
+        return "P25V"
     elif fnc in ("sel", "select"):
         return None
+    else:
+        print("Invalid INST subsection:", fnc, cmdtree)
+
 
 # MEASure:
 def meas(cmdtree: list):
@@ -230,10 +234,11 @@ def measure(cmdtree: list):
     elif fnc in ("volt?", "voltage?"):
         return "{:1.3f}".format(psu.measure.voltage())
     else:
-        return None
+        print("Invalid MEAS subsection:", fnc, cmdtree)
 
-# OUTput:
-def out(cmdtree: list):
+
+# OUTPut:
+def outp(cmdtree: list):
     return output(cmdtree)
 def output(cmdtree: list):
     fnc = cmdtree.pop(0)
@@ -243,7 +248,8 @@ def output(cmdtree: list):
         psu.power = (fnc.split(' ')[1] == "on")
         return None
     else:
-        return None
+        print("Invalid OUTP subsection:", fnc, cmdtree)
+
 
 def syst(cmdtree: list):
     return system(cmdtree)
@@ -254,7 +260,7 @@ def system(cmdtree: list):
     elif fnc in ("rem", "remote"):
         return None
     else:
-        return None
+        print("Invalid SYST subsection:", fnc, cmdtree)
 
 
 ###############################################################################
@@ -278,6 +284,12 @@ if __name__ == "__main__":
         const = "PORT",
         default = Cfg.device,
         type = str
+    )
+    parser.add_argument(
+        '--show-command-replies',
+        help = 'Show received commands and replies instead of PSU internal state',
+        action = 'store_true',
+        dest = "showcmds"
     )
     args = parser.parse_args()
     Cfg.device = args.port
@@ -313,7 +325,7 @@ if __name__ == "__main__":
     print(" '{}' OK".format(bus.name))
 
     # Create virtual Agilent power supply
-    psu = PSU()
+    psu = PSU(display_state = not args.showcmds)
 
     #
     # Main loop
@@ -323,7 +335,6 @@ if __name__ == "__main__":
         while True:
 			# Slice two last characters ('\r\n')
             cmd = bus.readline().decode('ascii', 'ignore')[:-2].lower()
-            # print("'{}'   ==> ".format(cmd), end = '')
 
             #
             # Command tree
@@ -342,13 +353,15 @@ if __name__ == "__main__":
             if reply:
                 reply = reply + "\r\n"
                 bus.write(reply.encode('ascii'))
-            # print(
-            #     "'{}'"
-            #     .format(
-            #         reply.replace('\n', '\\n').replace('\r', '\\r') if reply else "None"
-            #     ),
-            #     flush=True
-            # )
+
+            if args.showcmds:
+                print(
+                    "'{c: <{w}}' ==> {r}".format(
+                        w = 30,
+                        c = cmd,
+                        r = reply.replace('\n', '\\n').replace('\r', '\\r') if reply else "None"
+                    )
+                )
     except KeyboardInterrupt:
         print('interrupted!')
     finally:
