@@ -23,8 +23,8 @@ class Config:
             working_directory   = '/srv/nginx-root'
             lock_directory      = '/tmp'
             class Interval:
-                command         = 0.2   # seconds between polls
-                update          = 0.5   # seconds between updates
+                command         = 0.1   # seconds between polls
+                update          = 0.3   # seconds between updates
     class PATE:
         class Bus:
             port                = '/dev/ttyUSB1'

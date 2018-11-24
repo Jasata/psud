@@ -5,8 +5,10 @@
 #   0.1     2018.10.15  Initial version.
 #   0.2     2018.11.11  Reviced interface.
 #   0.3     2018.11.24  Raise serial.SerialTimeoutException on read timeouts.
-#                       Setter returns discarded. PSU.port honored.
+#                       Setter returns discarded.
+#                       PSU.port honored.
 #                       On __init__(), port is flushed.
+#                       short-hand SCPI command strings used.
 #
 #
 # This class interface uses typing (Python 3.5+) for public methods.
@@ -54,64 +56,42 @@ class PSU:
 
         def voltage(self) -> float:
             """Read measured voltage from the device."""
-            time.sleep(__SLEEP__)
-            self.psu._PSU__send_message("Measure:Voltage?")
-            input_message_byte=self.psu._PSU__read_message()  
-             
-            #message received
-            input_message=input_message_byte.decode('utf-8')
-            measured_voltage=float(input_message)
-
-            return measured_voltage         
+            self.psu._PSU__send_message("MEAS:VOLT?") # "Measure:Voltage?"
+            return float(self.psu._PSU__read_message())
 
         def current(self) -> float:
             """Read measured current from the device."""
-            time.sleep(__SLEEP__)
-            self.psu._PSU__send_message("MEASure:CURRent?")
+            self.psu._PSU__send_message("MEAS:CURR?") # "MEASure:CURRent?"
             return float(self.psu._PSU__read_message())
 
 
     @property
     def power(self) -> bool:
         """Read PSU power state ("ON" or "OFF")."""
-        #return self.__read_message("Read power output value SCPI command...")
-        return self._power
-		
+        self.__send_message("OUTP:STAT?") # "Output:State?"
+        return ("ON" in self.__read_message())
     @power.setter
     def power(self, value: bool) -> bool:
-        """Toggle power output ON or OFF. Setting is read back from the device
-        and returned by this function (confirmation)."""  
-        time.sleep(__SLEEP__)
-        if value == True:
-            self.__send_message('Output:State ON')
-        if value == False: 
-            self.__send_message('Output:State OFF')
-        self._power = value
-        #return self._power
+        """Toggle power output ON or OFF. Setting is read back from the device and returned by this function (confirmation)."""
+         # "Output:State ON"
+        self.__send_message("OUTP:STAT {}".format(("OFF", "ON")[value]))
 
 
     @property
     def voltage(self) -> float:
         """Read PSU voltage setting. NOT the same as measured voltage!"""
-        time.sleep(__SLEEP__)
-        #send message
-        output_message = 'Source:Voltage:Immediate?'
-        self.__send_message(output_message)
-
-        input_message_byte=self.__read_message()             
-        input_message=input_message_byte.decode('utf-8')    #convert to string 
-        voltage_set_value_from_PSU = float(input_message)
-        return voltage_set_value_from_PSU
+        self.__send_message("SOUR:VOLT:IMM?") # "Source:Voltage:Immediate?"
+        return float(self.__read_message())
     @voltage.setter
-    #def voltage(self, value: float) -> float:
-    def voltage(self, voltage_set_value: float = None) -> float:
+    def voltage(self, value: float) -> float:
         """Set PSU voltage. After setting the value, the setting read back
         and returned. NOTE: This is NOT the measured actual output voltage!"""
-        time.sleep(__SLEEP__)
-        if voltage_set_value:
-            output_message = 'Source:Voltage:Immediate {0:1.3f}'.format(voltage_set_value)      #output setting at 1 mV accuracy
-            self.__send_message(output_message)
-        #return self.voltage
+        # "Source:Voltage:Immediate {0:1.3f}"
+        self.__send_message(
+            "SOUR:VOLT:IMM {0:1.3f}".format(
+                value
+            )
+        )
 
     @property
     def current_limit(self) -> float:
@@ -121,12 +101,11 @@ class PSU:
     def current_limit(self, value:float = None) -> float:
         """Set PSU current limit value."""
         self._current_limit = value
-        #return self.current_limit
 
 
     @property
     def state(self) -> str:
-        """Read PSU state (has/is current limit reached)."""
+        """Read PSU state (current limit is/has been reached)."""
         return self._state
 
 
@@ -223,13 +202,14 @@ class PSU:
     #   NOTE: __init__() signature must remain as specified.
     #
     def __init__(self, port = None):
-        """Initialize object and test that we are connected to PSU by issuing a version query.
-        If port argument is omitted, Config.PSU.Serial.port is used."""
+        """Initialize object and test that we are connected to PSU by issuing a version query. If port argument is omitted, Config.PSU.Serial.port is used. Modified 24.11.2018."""
         self.measure = self.Measure(self) # <- must be here
+        # Testing "hacks"
         self._power             = False
         self._voltage_setting   = 0.0
         self._current_limit     = 0.4
         self._state             = "OK"
+
 
         #serial interface
         port          = port
@@ -254,12 +234,31 @@ class PSU:
         self.port.flushOutput()
         self.port.flushInput()
 
-        self.__set_remote_mode()
-        self.power = True
-            
+        # Set remote mode
+        self.__send_message("SYST:REM") # "System:Remote"
+        # PSU apparently does not respond (which is shitty design)
+
+        # Query version
+        self.__send_message("SYST:VERS?") # "System:Version?"
+        reply = self.__read_message()
+        try:
+            if len(reply) < len("yyyy.x"):
+                raise ValueError()
+            if reply[4:5] != '.':
+                raise ValueError()
+            int(reply[0:4])
+            int(reply[5:6])
+        except:
+            raise ValueError("Device is not Agilent E3631?")
+
+        # Select output terminal
+        self.__send_message("Instrument:Select P25V")
+        # Apparently again, no reply
+
+
 
     def __send_message(self,message_data_str_out):
-        """Copied from 'PSU_class_010.py', 09.11.2018."""
+        """Copied from 'PSU_class_010.py', 09.11.2018. Modified 24.11.2018."""
     
         #add LF and CR characters to the end of message 
         LF_char = 0x0A      #integer, Line feed
@@ -276,51 +275,19 @@ class PSU:
 
     def __read_message(self):
         """read message from PSU
-        Copied from 'PSU_class_010.py', 09.11.2018."""
+        Copied from 'PSU_class_010.py', 09.11.2018. Modified 24.11.2018."""
         received_message_bytes=self.serial_port.read_until(b'\r\n',20) #read max. 20 bytes from serial
         if received_message_bytes[-1:] != b'\n': 
-            raise serial.SerialTimeoutException("Serial read timeout! ({}s)".format(self.serial_port.timeout))
-        return received_message_bytes       #return bytestring
+            raise serial.SerialTimeoutException(
+                "Serial read timeout! ({}s)".format(
+                    self.serial_port.timeout
+                )
+            )
+        return received_message_bytes.decode('utf-8')[:-2]
 
 
-    def set_output_channel(self,channel):
-        """test purpose only"""
-        self.__set_output_channel(channel)
-
-    def __set_output_channel(self, channel='P6V'):
-        """Copied from 'PSU_class_010.py', 09.11.2018."""
-        #assert(channel in ['P6V', 'P25V','N25V'])
-        output_message = 'Instrument:Select {0:s}'.format(channel)
-        self.__send_message(output_message)
 
     
-    def check_SCPI_version(self):
-        """test purpose only"""
-        self.__check_SCPI_version()
-
-    def __check_SCPI_version(self,version='-'):
-        """Copied from 'PSU_class_010.py', 09.11.2018."""
-        #check if version is equal to SCPI version of the PSU
-        #compare bytestrings
-                        
-        #Version format is YYYY.V
-        correct_version="1995.0"
-        #correct_version_byte=correct_version.encode('utf-8')
-      
-        #LF_str = "{0:1c}".format(LF_char)
-        #if input_message_byte[0]==correct_version_byte[0]:
-        if version[0] == correct_version[0]:
-            return True    
-        else:
-            return False
-
-
-    def set_remote_mode(self):
-        self.__send_message("System:Remote")
-
-    def __set_remote_mode(self):
-        self.__send_message("System:Remote")
-
     def get_version(self):
         """test purpose only"""
         input_message=self.__get_version()
@@ -335,7 +302,7 @@ class PSU:
         input_message=input_message_byte.decode('utf-8')    #convert to string 
             
         version_number=float(input_message)
-        version_number=version_number+0.002
+        version_number=version_number+0.002 # What the ... ???
             
         return input_message            
 

@@ -11,6 +11,7 @@
 #   0.3.0   2018.11.17  Final touches. (hopefully)
 #   0.4.0   2018.11.17  Refactored.
 #   0.4.1   2018.11.18  Minor fixes.
+#   0.4.2   2018.11.24  Serial timeout handling plus speedups.
 #
 #
 # Execute this script to start the daemon.
@@ -26,7 +27,7 @@
 #       Class files (names starting with capital letter) are used by the
 #       'control.py' main loop to execute the tasks periodically.
 #
-__version__ = "0.4.1"
+__version__ = "0.4.2"
 __author__  = "Jani Tammi <jasata@utu.fi>"
 VERSION     = __version__
 HEADER      = """
