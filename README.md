@@ -135,3 +135,34 @@ Update took about 10% more than calculated, which is not too bad. However, `SET 
 
 Shorthands should be used for general performance improvement and command processing needs to be examined in detail.
 
+## Version 0.4.2 Testing Results
+
+    Nov 25 00:04:11 nuc patemon.psud[27598]: PSU:update took 112.512 ms, previous 200.0 ms ago
+    Nov 25 00:04:11 nuc patemon.psud[27598]: PSU:update took 113.231 ms, previous 200.0 ms ago
+    Nov 25 00:04:11 nuc patemon.psud[27598]: PSU:update took 112.143 ms, previous 199.9 ms ago
+    Nov 25 00:04:12 nuc patemon.psud[27598]: PSU:update took 112.470 ms, previous 200.1 ms ago
+    Nov 25 00:04:12 nuc patemon.psud[27598]: PSU:update took 112.396 ms, previous 199.9 ms ago
+    Nov 25 00:04:12 nuc patemon.psud[27598]: PSU:update took 113.131 ms, previous 200.1 ms ago
+    Nov 25 00:04:12 nuc patemon.psud[27598]: PSU:update took 113.005 ms, previous 200.0 ms ago
+    Nov 25 00:04:12 nuc patemon.psud[27598]: PSU:update took 112.515 ms, previous 199.8 ms ago
+
+Updates are now as good as they need to be. This version also received a serial timeout handling features, along with retry count:
+
+    Nov 25 00:26:57 nuc patemon.psud[28810]: PSU:update took 112.991 ms, previous 6000.0 ms ago
+    Nov 25 00:27:03 nuc patemon.psud[28810]: PSU:update took 111.136 ms, previous 6000.0 ms ago
+    Nov 25 00:27:09 nuc patemon.psud[28810]: PSU:update failed! (error count: 1/3)
+    Nov 25 00:27:15 nuc patemon.psud[28810]: PSU:update took 115.180 ms, previous 12000.0 ms ago
+    Nov 25 00:27:21 nuc patemon.psud[28810]: PSU:update took 115.622 ms, previous 6000.0 ms ago
+    Nov 25 00:27:27 nuc patemon.psud[28810]: PSU:update took 114.805 ms, previous 6000.0 ms ago
+    Nov 25 00:27:33 nuc patemon.psud[28810]: PSU:update took 115.262 ms, previous 6000.0 ms ago
+    Nov 25 00:27:39 nuc patemon.psud[28810]: PSU:update failed! (error count: 1/3)
+    Nov 25 00:27:45 nuc patemon.psud[28810]: PSU:update failed! (error count: 2/3)
+    Nov 25 00:27:51 nuc patemon.psud[28810]: PSU:update failed! (error count: 3/3)
+    Nov 25 00:27:51 nuc patemon.psud[28810]: Repeated serial timeouts!
+    Nov 25 00:27:51 nuc patemon.psud[28810]: Abnormal, but clean, daemon exit!
+
+Commands are also reasonably fast:
+
+    Nov 25 00:20:29 nuc patemon.psud[28782]: PSU:SET VOLTAGE took 58.667 ms
+
+Results are likely to become worse with actual Agilent PSU (as opposed to emulated unit) and once this is moved to target platform (Raspberry Pi 3 B+).
