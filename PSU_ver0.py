@@ -4,6 +4,9 @@
 # PSU.py - Jarkko Pesonen <jarpeson@utu.fi>
 #   0.1     2018.10.15  Initial version.
 #   0.2     2018.11.11  Reviced interface.
+#   0.3     2018.11.24  Raise serial.SerialTimeoutException on read timeouts.
+#                       Setter returns discarded. PSU.port honored.
+#                       On __init__(), port is flushed.
 #
 #
 # This class interface uses typing (Python 3.5+) for public methods.
@@ -13,6 +16,8 @@ import serial
 import time
 
 from Config import Config
+
+
 
 # HACK
 __SLEEP__ = 0.0
@@ -82,7 +87,7 @@ class PSU:
         if value == False: 
             self.__send_message('Output:State OFF')
         self._power = value
-        return self._power
+        #return self._power
 
 
     @property
@@ -106,8 +111,7 @@ class PSU:
         if voltage_set_value:
             output_message = 'Source:Voltage:Immediate {0:1.3f}'.format(voltage_set_value)      #output setting at 1 mV accuracy
             self.__send_message(output_message)
-        return self.voltage
-         
+        #return self.voltage
 
     @property
     def current_limit(self) -> float:
@@ -117,7 +121,7 @@ class PSU:
     def current_limit(self, value:float = None) -> float:
         """Set PSU current limit value."""
         self._current_limit = value
-        return self.current_limit
+        #return self.current_limit
 
 
     @property
@@ -128,42 +132,15 @@ class PSU:
 
     @property
     def values(self) -> dict:
-        """Returns a tuple for SQL INSERT."""
-        try:
-            _ = self.power
-        except:
-            print("self.power")
-        try:
-            _ = self.voltage
-        except:
-            print("self.voltage")
-        try:
-            _ = self.current_limit
-        except:
-            print("self.current_limit")
-        try:
-            _ = self.measure.voltage()
-        except:
-            print("self.measure.voltage()")
-        try:
-            _ = self.measure.current()
-        except:
-            print("self.measure.current()")
-        try:
-            _ = self.state
-        except:
-            print("self.state")
-        try:
-            return dict({
-                "power"               :"ON" if self.power else "OFF",
-                "voltage_setting"     :self.voltage,
-                "current_limit"       :self.current_limit,
-                "measured_current"    :self.measure.current(),
-                "measured_voltage"    :self.measure.voltage(),
-                "state"               :self.state
-            })
-        except Exception as e:
-            print("IT IS AWFUL", str(e))
+        """Returns a dict for SQL INSERT."""
+        return dict({
+            "power"               :"ON" if self.power else "OFF",
+            "voltage_setting"     :self.voltage,
+            "current_limit"       :self.current_limit,
+            "measured_current"    :self.measure.current(),
+            "measured_voltage"    :self.measure.voltage(),
+            "state"               :self.state
+        })
 
 
     ###########################################################################
@@ -268,6 +245,15 @@ class PSU:
         self.serial_port = serial.Serial(port,baudrate,bytesize,parity,
                                         stopbits,timeout,xonxoff,rtscts,
                                         write_timeout)
+        # It was supposed to be PSU.port!
+        self.port = self.serial_port
+
+        # Delay 100 ms, send line termination, flush
+        time.sleep(0.1)
+        self.port.write("\r\n".encode("utf-8"))
+        self.port.flushOutput()
+        self.port.flushInput()
+
         self.__set_remote_mode()
         self.power = True
             
@@ -293,7 +279,7 @@ class PSU:
         Copied from 'PSU_class_010.py', 09.11.2018."""
         received_message_bytes=self.serial_port.read_until(b'\r\n',20) #read max. 20 bytes from serial
         if received_message_bytes[-1:] != b'\n': 
-            raise ValueError("Serial read timeout! ({}s)".format(self.serial_port.timeout))
+            raise serial.SerialTimeoutException("Serial read timeout! ({}s)".format(self.serial_port.timeout))
         return received_message_bytes       #return bytestring
 
 

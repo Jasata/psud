@@ -428,8 +428,10 @@ def daemonify(function):
 
     #
     # Returned from main loop
+    # Happens only on exceptional conditions, like someone yanks the
+    # USB-RS232 adapter out etc...
     #
-    log.error("Daemon exited main loop! Should never happen!")
+    log.error("Abnormal, but clean, daemon exit!")
 
 
 
