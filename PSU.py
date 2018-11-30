@@ -5,6 +5,7 @@
 #           modified by Jani Tammi <jasata.utu.fi>
 #   0.4.0   2018.11.30  Renamed as 'PSU.py'.
 #   0.4.1   2018.11.30  Removed trailing whitespaces and couple of TABs.
+#   0.4.2   2018.11.30  Changed import from 'Config_02W' to 'Config'.
 #
 #
 # PSU_A017W.py - Jarkko Pesonen <jarpeson@utu.fi>
@@ -21,7 +22,7 @@
 import serial
 import time
 
-from Config_02W import Config
+from Config import Config
 
 #debug level for PSU Class
 debug_level = None     #debug_level None: do not print anything
