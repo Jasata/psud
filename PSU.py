@@ -11,6 +11,7 @@
 #   0.4.5   2018.11.30  Removed unnecessary comments and commented-out blocks.
 #   0.4.6   2018.11.30  Fixed static method .find()
 #   0.4.7   2018.11.30  Removed remaining debug/development time.sleep()'s.
+#   0.4.8   2018.11.30  Fixed '.state' and '.status' mixup.
 #
 #
 # PSU_A017W.py - Jarkko Pesonen <jarpeson@utu.fi>
@@ -49,7 +50,7 @@ class PSU:
     #       PSU().power                 bool
     #       PSU().voltage               float
     #       PSU().current_limit         float
-    #       PSU().status                str             ["OVER CURRENT" | "OK"]
+    #       PSU().state                 str             ["OVER CURRENT" | "OK"]
     #       PSU().port                  serial.Serial
     # PSU functions:
     #       PSU().values_tuple()        tuple
@@ -177,10 +178,11 @@ class PSU:
 
 
     @property
-    def status(self) -> str:
-        """Read PSU Status (has/is current limit reached)."""
-        self.__send_message("Query current limit status...")
-        return ("OVER CURRENT", "OK")[(self.__read_message() == "<OK string response>")]
+    def state(self) -> str:
+        """Returns "OK" or "OVER CURRENT" depending on if current limit having been reached."""
+        # TODO
+        return "OK"
+
 
     @property
     def values(self) -> dict:
