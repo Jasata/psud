@@ -9,6 +9,7 @@
 #   0.4.3   2018.11.30  Removed debug print messages.
 #   0.4.4   2018.11.30  Removed unnecessary try .. catch blocks.
 #   0.4.5   2018.11.30  Removed unnecessary comments and commented-out blocks.
+#   0.4.6   2018.11.30  Fixed static method .find()
 #
 #
 # PSU_A017W.py - Jarkko Pesonen <jarpeson@utu.fi>
@@ -197,8 +198,8 @@ class PSU:
     ###########################################################################
     #
     # Static method for finding the correct port
-    #
-    # NOTE: Completely untested.
+    # (This function written by Jani Tammi)
+    # NOTE: Tested on 12.11.2018 / JTa.
     #
     @staticmethod
     def find() -> str:
@@ -234,15 +235,15 @@ class PSU:
             try:
                 port = serial.Serial(
                     port          = port,
-                    baudrate      = Config.PSU.Serial.baudrate,
-                    parity        = Config.PSU.Serial.parity,
-                    stopbits      = Config.PSU.Serial.stopbits,
-                    bytesize      = Config.PSU.Serial.bytesize,
-                    timeout       = 0.1,
+                    baudrate      = Config.PSU.baudrate,
+                    parity        = Config.PSU.parity,
+                    stopbits      = Config.PSU.stopbits,
+                    bytesize      = Config.PSU.bytesize,
+                    timeout       = 0.3,
                     write_timeout = None
                 )
-                # Assuming 'yyyy.xx' return format
-                response = transact(port, 'System:Version?')
+                # Agilent uses CRLF line termination
+                response = transact(port, 'System:Version?\r\n')
                 result = valid_firmware_string(response)
             except:
                 result = False
@@ -257,9 +258,9 @@ class PSU:
         #
         import serial.tools.list_ports
         port = None
-        for p in serial.tools.list_ports.comports(include_links=False):
-            if found_at(p):
-                port = p
+        for sysfsobj in serial.tools.list_ports.comports():
+            if found_at(sysfsobj.device):
+                port = sysfsobj.device
                 break
         return port
 
