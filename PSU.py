@@ -10,6 +10,7 @@
 #   0.4.4   2018.11.30  Removed unnecessary try .. catch blocks.
 #   0.4.5   2018.11.30  Removed unnecessary comments and commented-out blocks.
 #   0.4.6   2018.11.30  Fixed static method .find()
+#   0.4.7   2018.11.30  Removed remaining debug/development time.sleep()'s.
 #
 #
 # PSU_A017W.py - Jarkko Pesonen <jarpeson@utu.fi>
@@ -118,7 +119,6 @@ class PSU:
     @property
     def voltage_set_value_test(self) -> float:
         """Read PSU voltage setting. NOT the same as measured voltage!"""
-        time.sleep(0.3)
         #send message
         output_message = 'Source:Voltage:Immediate?'
         self.__send_message(output_message)
@@ -407,7 +407,6 @@ class PSU:
         self.__send_message("System:Remote")
 
     def __set_remote_mode(self):
-        #time.sleep(0.3)
         self.__send_message("System:Remote")
 
     def get_version(self):
