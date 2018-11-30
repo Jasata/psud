@@ -15,6 +15,7 @@
 #   0.4.9   2018.11.30  Removed unused functions.
 #   0.4.10  2018.11.30  Use '.port' as specified (instead of '.serial_port').
 #                       Handle Config.PSU.port = 'auto'.
+#   0.4.11  2018.11.30  Add port flushing to __init__().
 #
 #
 # PSU_A017W.py - Jarkko Pesonen <jarpeson@utu.fi>
@@ -300,9 +301,15 @@ class PSU:
             timeout         = Config.PSU.timeout,
             xonxoff         = False,
             rtscts          = False,
-            write_timeout   = None
+            write_timeout   = None,
             dsrdtr          = True
         )
+
+        # Delay 100 ms, send line termination, flush
+        time.sleep(0.1)
+        self.port.write("\r\n".encode("utf-8"))
+        self.port.flushOutput()
+        self.port.flushInput()
 
         #set remote mode
         self.__set_remote_mode()
