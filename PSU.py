@@ -12,6 +12,7 @@
 #   0.4.6   2018.11.30  Fixed static method .find()
 #   0.4.7   2018.11.30  Removed remaining debug/development time.sleep()'s.
 #   0.4.8   2018.11.30  Fixed '.state' and '.status' mixup.
+#   0.4.9   2018.11.30  Removed unused functions.
 #
 #
 # PSU_A017W.py - Jarkko Pesonen <jarpeson@utu.fi>
@@ -354,9 +355,6 @@ class PSU:
 
         return received_message_bytes
 
-    def read_selected_channel(self):
-        selected_channel_from_PSU=self.__read_selected_channel()
-        return selected_channel_from_PSU
 
     def __read_selected_channel(self):
         output_message = 'Instrument:Select?'
@@ -365,23 +363,6 @@ class PSU:
         input_message=input_message_byte.decode('utf-8')
         return input_message
 
-    #test only
-    def select_channel_long_msg(self,channel):
-        """test purpose only"""
-        self.__select_channel_long_msg(channel)
-
-    #test only
-    def select_channel(self,channel):
-        """test purpose only"""
-        self.__select_channel(channel)
-
-
-
-    #long message 
-    def __select_channel_long_msg(self, channel='P6V'):
-        output_message = 'Instrument:Select {0:s}'.format(channel)
-        self.__send_message(output_message)
-        return
 
     #short message
     def __select_channel(self, channel='P6V'):
@@ -390,44 +371,9 @@ class PSU:
         self.__send_message(output_message)
         return
 
-    
-    def check_SCPI_version(self):
-        """test purpose only"""
-        self.__check_SCPI_version()
-
-    #old version
-    def __check_SCPI_version(self,version='-'):
-        #Version format is YYYY.V
-        correct_version="1995.0"
-        if version[0] == correct_version[0]:
-            return True
-        else:
-            return False
-
-
-    def set_remote_mode(self):
-        self.__send_message("System:Remote")
 
     def __set_remote_mode(self):
         self.__send_message("System:Remote")
-
-    def get_version(self):
-        """test purpose only"""
-        input_message=self.__get_version()
-        return input_message
-
-    def __get_version(self):
-        """Read SCPI -version from PSU."""
-        self.__send_message("System:Version?")
-        input_message_byte=self.__read_message()  
-        input_message=input_message_byte.decode('utf-8')
-
-        #test only
-        version_number=float(input_message)
-        version_number=version_number+0.002
-
-        return input_message
-
 
 
     #
@@ -435,46 +381,10 @@ class PSU:
     #
     def __enter__(self):
         return self
+
+
     def __exit__(self, exc_type, exc_value, traceback):
         self.port.close()
-
-
-
-
-if __name__ == "__main__":
-    """Basic test"""
-    import os
-
-
-    print("Finding PSU...", end="", flush=True)
-    try:
-        port = PSU.find()
-        if not port:
-            print("not found!")
-            os._exit(-1)
-    except:
-        print("\nAbnormal termination!")
-        raise
-
-
-    with PSU(port) as psu:
-        print(psu.values_tuple)
-
-
-        psu.power = False
-        psu.voltage = 3.3
-        psu.current_limit = 0.3
-        if psu.measure.voltage() > 0.02:
-            raise ValueError("Unexpected voltage at terminal!")
-
-
-        psu.power = True
-        if abs(psu.measure.voltage() - psu.voltage) > 0.05:
-            raise ValueError("Unexpected voltage difference between set and measured values!")
-
-
-        print(psu.values_tuple)
-        psu.power = False
 
 
 # EOF
