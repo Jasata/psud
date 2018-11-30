@@ -13,6 +13,8 @@
 #   0.4.7   2018.11.30  Removed remaining debug/development time.sleep()'s.
 #   0.4.8   2018.11.30  Fixed '.state' and '.status' mixup.
 #   0.4.9   2018.11.30  Removed unused functions.
+#   0.4.10  2018.11.30  Use '.port' as specified (instead of '.serial_port').
+#                       Handle Config.PSU.port = 'auto'.
 #
 #
 # PSU_A017W.py - Jarkko Pesonen <jarpeson@utu.fi>
@@ -283,20 +285,24 @@ class PSU:
         If port argument is omitted, Config.PSU.Serial.port is used."""
         self.measure = self.Measure(self)
 
-        port          = port
-        baudrate      = Config.PSU.baudrate
-        bytesize      = Config.PSU.bytesize
-        parity        = Config.PSU.parity
-        stopbits      = Config.PSU.stopbits
-        timeout       = Config.PSU.timeout
-        write_timeout = None
-        xonxoff       = False
-        rtscts        = False
-        dsrdtr        = True
+        # If 'auto', try to .find() it.
+        if not port and Config.PSU.port.lower() == 'auto':
+            Config.PSU.port = PSU.find()
+            if Config.PSU.port is None:
+                raise ValueError("Unable to find power supply!")
 
-        self.serial_port = serial.Serial(port,baudrate,bytesize,parity,
-                                        stopbits,timeout,xonxoff,rtscts,
-                                        write_timeout,dsrdtr)
+        self.port = serial.Serial(
+            port            = port or Config.PSU.port,
+            baudrate        = Config.PSU.baudrate,
+            bytesize        = Config.PSU.bytesize,
+            parity          = Config.PSU.parity,
+            stopbits        = Config.PSU.stopbits,
+            timeout         = Config.PSU.timeout,
+            xonxoff         = False,
+            rtscts          = False,
+            write_timeout   = None
+            dsrdtr          = True
+        )
 
         #set remote mode
         self.__set_remote_mode()
@@ -342,16 +348,16 @@ class PSU:
         output_message = message_data_str_out+CR_str+LF_str
         output_message_byte=output_message.encode('utf-8')
 
-        bytes_written=self.serial_port.write(output_message_byte)
+        bytes_written=self.port.write(output_message_byte)
 
         return
 
 
     def __read_message(self):
         """read message from PSU."""
-        received_message_bytes=self.serial_port.read_until(b'\r\n',20)
+        received_message_bytes=self.port.read_until(b'\r\n',20)
         if received_message_bytes[-1:] != b'\n':
-            raise ValueError("Serial read timeout! ({0:1.2f} s)".format(self.serial_port.timeout))
+            raise ValueError("Serial read timeout! ({0:1.2f} s)".format(self.port.timeout))
 
         return received_message_bytes
 
