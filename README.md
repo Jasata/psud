@@ -4,7 +4,7 @@ This solution implements minimal RS-232 remote control of Agilent E3631 power su
 
 psud runs as a daemon (unless `--nodaemon` is specified) and connects to PATE Monitor SQLite database to monitor and process "PSU" commands and to periodically update the `psu` table with settings and measured voltage and current values.
 
-All code, with the exception of `PSU.py`, are written by Jani Tammi and copyrighted under MIT license. The interface class `PSU.py` is written by *NAME* and is copyrighted under *LICENSE*. The project repository for this this file is *REPOSITORY*. (to be updated once PSU interface class is completed by the assigned programmer).
+All code, with the exception of `PSU.py`, are written by Jani Tammi and copyrighted under MIT license. The interface class `PSU.py` is written by [Jarkko Pesonen](https://github.com/jarpeson) and is copyrighted under [Apache 2 license](https://github.com/jarpeson/pmpsu/blob/master/LICENSE). The project repository for this this file is [https://github.com/jarseson/pmpsu.git](https://github.com/jarpeson/pmpsu.git).
 
 ## Why not PEP 3143? (Standard daemon process library)
 
