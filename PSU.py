@@ -227,7 +227,7 @@ class PSU:
 
         # Check that it's a PSU ('yyyy.xx' return format)
         try:
-            response = self.__transact('SYST:VERS?')
+            response = self.__transact("SYST:VERS?")
             if response[4:5] != '.':
                 raise ValueError()
             int(response[0:4])
@@ -249,12 +249,12 @@ class PSU:
 
 
 
-    def __write(command: str) -> None:
+    def __write(self, command: str) -> None:
         """Send SCPI command string to serial adapter."""
         self.port.write((command + "\r\n").encode('utf-8'))
 
 
-    def __transact(command: str) -> str:
+    def __transact(self, command: str) -> str:
         """Read SCPI command response from serial adapter."""
         self.__write(command)
         line = self.port.readline()
