@@ -299,6 +299,9 @@ class PSU:
     def __transact(self, command: str) -> str:
         """Read SCPI command response from serial adapter."""
         self.__write(command)
+        # PSU DTR *must* be low to indicate willingness to send
+        if self.port.dsr:
+            raise ValueError("PSU DTR is high!")
         line = self.port.readline()
         # If the last character is not '\n', we had a timeout.
         # Agilent E3631 returns '\r\n' line terminators, but '\n' is fine.
