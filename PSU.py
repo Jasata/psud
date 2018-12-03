@@ -224,6 +224,9 @@ class PSU:
         self.port.write("\r\n".encode("utf-8"))
         self.port.flushOutput()
         self.port.flushInput()
+        # Let the PSU "recover"
+        time.sleep(0.5)
+
 
         # Check that it's a PSU ('yyyy.xx' return format)
         try:
