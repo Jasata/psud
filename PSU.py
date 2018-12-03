@@ -11,8 +11,14 @@
 #
 # python3 -m serial.tools.miniterm --parity N --dtr 0 --eol CRLF
 #
+# DTR - Data Terminal Ready     PSU is ready to receive
+#                               ->False : Stop within 10 characters
+#                               read: port.getDSR()
+# DSR - Data Set Ready          PSU monitors for bus controller's readiness
+#                               PSU pauses immediately when false
+#                               set: port.setDTR(1|0)
 #
-# Agilent E3631 User Guide
+# Agilent E3631 User Guide:
 #   (page 58): The DTR line must be TRUE before the power supply will accept
 #   data from the interface. When the power supply sets the DTR line FALSE,
 #   the data must cease within 10 characters.
@@ -21,6 +27,14 @@
 #   DSR line to logic TRUE. If you disable the DTR/DSR handshake, also select a
 #   slower baud rate to ensure that the data is transmitted correctly.
 #
+#   (page 59): A form of interface deadlock exists until the bus controller
+#   asserts the DSR line TRUE to allow the power supply to complete the
+#   transmission. You can break the interface deadlock by sending the <Ctrl-C> 
+#   character, which clears the operation in progress and discards pending 
+#   output (this is equivalent to the IEEE-488 device clear action).
+#
+#   For the <Ctrl-C> character to be recognized reliably by the power supply
+#   while it holds DTR FALSE, the bus controller must first set DSR FALSE.
 #
 import serial
 import time
@@ -233,11 +247,16 @@ class PSU:
         # "Clear line". User's Guide p. 59 tells us that sending CTRL-C to the
         # unit will cause it to discard any pending output.
         # "^C" ETX ("End of Text") 0x03
-        # Delay 100 ms, send line termination, flush
+        # "For the <Ctrl-C> character to be recognized reliably by the power
+        # supply while it holds DTR FALSE, the bus controller must first set
+        # DSR FALSE."
         self.port.flushOutput()
         self.port.flushInput()
         time.sleep(0.1)
+        self.port.setDRT(0)
         self.port.write(b'\x03')
+        while not self.port.getDSR():
+            pass
         # Let the PSU "recover"
         time.sleep(0.5)
 
@@ -257,10 +276,15 @@ class PSU:
         # TODO: Try to determine if the PSU is already initialized
         # Setting remote does not return anything
         self.__write("SYST:REM")
-        time.sleep(0.1)
+        # If PySerial DSR/DTR control works, the above call should have not
+        # returned until the PSU DTR line is high.
+        if not self.port.getDSR():
+            raise ValueError("PSU DTR is low!")
 
         # Select terminal ("channel")
         self.__write("INST:SEL P25V")
+        if not self.port.getDSR():
+            raise ValueError("PSU DTR is low!")
         if self.__transact("INST:SEL?") != "P25V":
             raise ValueError("Unable to select output terminal!")
 
