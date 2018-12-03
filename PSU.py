@@ -11,6 +11,17 @@
 #
 # python3 -m serial.tools.miniterm --parity N --dtr 0 --eol CRLF
 #
+#
+# Agilent E3631 User Guide
+#   (page 58): The DTR line must be TRUE before the power supply will accept
+#   data from the interface. When the power supply sets the DTR line FALSE,
+#   the data must cease within 10 characters.
+#
+#   To disable the DTR/DSR handshake, do not connect the DTR line and tie the
+#   DSR line to logic TRUE. If you disable the DTR/DSR handshake, also select a
+#   slower baud rate to ensure that the data is transmitted correctly.
+#
+#
 import serial
 import time
 
@@ -219,11 +230,14 @@ class PSU:
             dsrdtr          = True
         )
 
+        # "Clear line". User's Guide p. 59 tells us that sending CTRL-C to the
+        # unit will cause it to discard any pending output.
+        # "^C" ETX ("End of Text") 0x03
         # Delay 100 ms, send line termination, flush
-        time.sleep(0.1)
-        self.port.write("\r\n".encode("utf-8"))
         self.port.flushOutput()
         self.port.flushInput()
+        time.sleep(0.1)
+        self.port.write(b'\x03')
         # Let the PSU "recover"
         time.sleep(0.5)
 
@@ -243,6 +257,7 @@ class PSU:
         # TODO: Try to determine if the PSU is already initialized
         # Setting remote does not return anything
         self.__write("SYST:REM")
+        time.sleep(0.1)
 
         # Select terminal ("channel")
         self.__write("INST:SEL P25V")
