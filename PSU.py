@@ -253,9 +253,9 @@ class PSU:
         self.port.flushOutput()
         self.port.flushInput()
         time.sleep(0.1)
-        self.port.setDRT(0)
+        self.port.dtr = 0
         self.port.write(b'\x03')
-        while not self.port.getDSR():
+        while not self.port.dsr:
             pass
         # Let the PSU "recover"
         time.sleep(0.5)
@@ -278,12 +278,12 @@ class PSU:
         self.__write("SYST:REM")
         # If PySerial DSR/DTR control works, the above call should have not
         # returned until the PSU DTR line is high.
-        if not self.port.getDSR():
+        if not self.port.dsr:
             raise ValueError("PSU DTR is low!")
 
         # Select terminal ("channel")
         self.__write("INST:SEL P25V")
-        if not self.port.getDSR():
+        if not self.port.dsr:
             raise ValueError("PSU DTR is low!")
         if self.__transact("INST:SEL?") != "P25V":
             raise ValueError("Unable to select output terminal!")
