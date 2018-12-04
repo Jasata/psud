@@ -28,6 +28,7 @@ class Lockfile:
         def __str__(self):
             return self.message + " (PID: {})".format(self.pid or "unknown")
 
+
     def __init__(self, name: str):
         """Create a lock file and write current PID into it."""
         self.name = name
@@ -53,8 +54,14 @@ class Lockfile:
             raise
 
 
+    def touch(self):
+        """Update access and modified times of the lockfile."""
+        os.utime(self.name)
+
+
     def __enter__(self):
         return self
+
 
     def __exit__(self, exc_type, exc_value, traceback):
         # raise if other than "no such file or directory" exception
