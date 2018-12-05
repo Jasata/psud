@@ -9,15 +9,18 @@ import serial
 
 class Config:
     class PSU:
-        port          = 'auto'
-        baudrate      = 9600
-        parity        = serial.PARITY_NONE
-        stopbits      = serial.STOPBITS_TWO
-        bytesize      = serial.EIGHTBITS
-        timeout       = 0.500    #seconds, timeout has to be > 300 ms
-        write_timeout = None
-        default_voltage = 2.5         #[V]
-        default_current_limit = 0.100 #[A]
+        class Serial:
+            port            = 'auto'
+            baudrate        = 9600
+            parity          = serial.PARITY_NONE
+            stopbits        = serial.STOPBITS_TWO
+            bytesize        = serial.EIGHTBITS
+            timeout         = 1.500     # seconds, timeout has to be > 300 ms
+            write_timeout   = None
+        class Default:
+            terminal        = "P25V"    # P6V, P25V, N25V
+            voltage         = 7.4       #[V] 2x 3.70 nominal LiPo cell voltage
+            current_limit   = 0.5       #[A]
         class Daemon:
             name                = "patemon.psud"
             working_directory   = '/srv/nginx-root'
