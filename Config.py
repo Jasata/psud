@@ -10,12 +10,12 @@ import serial
 class Config:
     class PSU:
         class Serial:
-            port            = 'auto'
+            port            = '/dev/ttyUSB1'    # 'auto'
             baudrate        = 9600
             parity          = serial.PARITY_NONE
             stopbits        = serial.STOPBITS_TWO
             bytesize        = serial.EIGHTBITS
-            timeout         = 1.500     # seconds, timeout has to be > 300 ms
+            timeout         = 0.500     # seconds, timeout has to be > 300 ms
             write_timeout   = None
         class Default:
             terminal        = "P25V"    # P6V, P25V, N25V

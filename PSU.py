@@ -70,6 +70,34 @@
 #   correct, before we trigger them.
 #   THIS NEEDS TO BE LOOKED INTO, IF WE WANT THIS TO BE USED.
 #
+###############################################################################
+#
+# ISSUE WITH SCPI COMMUNICATIONS
+#
+#       It has become clear that the the DTR signal does not indicate the
+#       readiness of the device to handle commands or queries. It seems to be
+#       limited to the readiness of the MCU that handles the serial comms.
+#
+#       In practise, this manifests itself as a failure to respond to a SCPI
+#       command, if it is issued "too soon" after a command that is still being
+#       handled internally. These /seem/ to be all the commands that modify the
+#       operation of the device, such as set voltage, select terminal, set
+#       terminal ON/OFF...
+#
+#       NO AMOUNT OF READ TIMEOUT / WAITING CAN SOLVE THIS ISSUE!!
+#       (if another command is sent too soon, the reply will never come)
+#
+#       Two strategies are seen to handle this:
+#       1. hard code "recovery delay" sleep() calls for each method that issues
+#          a known "troublemaker" SCPI command.
+#       2. Implement a retry count into the serial handler methods.
+#
+#   Testing Results:
+#
+#       GitHub USB-RS232.md should be read for details.
+#       TLDR; our first USB/RS-232 adapter caused the remaining issues.
+#       A borrowed unit solved the issues.
+#
 import time
 import serial
 import decimal
@@ -78,13 +106,26 @@ from typing import Union
 from Config import Config
 
 
-__RECOVERY_DELAY__ = 0.3    # 300 ms recovery time
-                            # necessary after certain commands;
-                            # OUTP, CURR, INST, APPL, etc.
+# FOR DEBUG LOGGING.
+__log_start__ = time.monotonic()
+
+def log(msg):
+    print(
+        "[{: >8.3f}] {}".format(
+            (time.monotonic() - __log_start__) * 1000,
+            msg or ""
+        )
+    )
+
+#__RECOVERY_DELAY__ = 0.3    # 300 ms recovery time
+#                            # necessary after certain commands;
+#                            # OUTP, CURR, INST, APPL, etc.
 
 class PSU:
 
     _loops = 0
+    _last_read = ""
+    _transaction_log = []
     #
     # Object properties
     #
@@ -139,7 +180,7 @@ class PSU:
         self.__write("OUTP " + ("OFF", "ON")[value])
         # After setting output state, PSU needs recovery time
         # (the DTR signal is a lie! Try it!)
-        time.sleep(__RECOVERY_DELAY__)
+        #time.sleep(__RECOVERY_DELAY__)
         if self.power != ("OFF", "ON")[value]:
             raise ValueError("Failed to toggle output ON/OFF!")
 
@@ -171,7 +212,7 @@ class PSU:
         # "SOUR:CURR:IMM" == "CURR"
         self.__write("CURR {}".format(str(round(value, 3))))
         # After setting current limit, PSU needs recovery time
-        time.sleep(__RECOVERY_DELAY__)
+        #time.sleep(__RECOVERY_DELAY__)
         # Skip verification for now...
 
 
@@ -260,27 +301,24 @@ class PSU:
     def flush(port: serial.Serial):
         """Clear serial line/buffers from artefacts. Agilent E3631 User's Guide (p. 59) tells us that sending CTRL-C to the unit will cause it to discard any pending output. ("^C" ETX; "End of Text", 0x03 or b'\x03'). Quite: "For the <Ctrl-C> character to be recognized reliably by the power supply while it holds DTR FALSE, the bus controller must first set DSR FALSE. (NOTE: for us, in PySerial, this means setting _our_ DTR low)."""
         discard_timeout = 0.1
-        print("#1", port.dsr, port.dtr)
+        log("#1 {} {}".format(port.dsr, port.dtr))
         port.flushOutput()
-        print("#2", port.dsr, port.dtr)
+        log("#2 {} {}".format(port.dsr, port.dtr))
         port.flushInput()
-        print("#3", port.dsr, port.dtr)
+        log("#3 {} {}".format(port.dsr, port.dtr))
         time.sleep(0.1)
-        print("#3", port.dsr, port.dtr)
+        log("#4 {} {}".format(port.dsr, port.dtr))
         port.dtr = 0
-        print("#4", port.dsr, port.dtr)
+        log("#5 {} {}".format(port.dsr, port.dtr))
         port.write(b'\x03')
-        print("#5", port.dsr, port.dtr)
+        log("#6 {} {}".format(port.dsr, port.dtr))
         port.dtr = 1
-        print("#6", port.dsr, port.dtr)
+        log("#7 {} {}".format(port.dsr, port.dtr))
         # wait until unit raises DTR
         start = time.monotonic()
         while not port.dsr and time.monotonic() - start < discard_timeout:
             time.sleep(0.01)
-        print(
-            "#7", port.dsr, port.dtr,
-            " {:1.2f} ms".format((time.monotonic() - start) * 1000)
-        )
+        log("#8 {} {}".format(port.dsr, port.dtr))
         if not port.dsr:
             raise serial.SerialTimeoutException(
                 "Device did not raise DTR within {:1.2f} ms".format(
@@ -289,7 +327,7 @@ class PSU:
             )
         # DTR has come up, but its a lie - PSU is not ready!
         # Wait for magical period
-        time.sleep(__RECOVERY_DELAY__)
+        #time.sleep(__RECOVERY_DELAY__)
         # print("#7", port.dsr, port.dtr)
 
 
@@ -328,10 +366,14 @@ class PSU:
             write_timeout   = None,
             dsrdtr          = True
         )
+        # PySerial has bad habbits. See:
+        # https://stackoverflow.com/questions/7266558/pyserial-buffer-wont-flush
+        # Recommended approach is to wait after opening a port
+        time.sleep(0.2)
 
         # Try to clean the line and buffers
         PSU.flush(self.port)
-        print(
+        log(
             "DTR wait after PSU.flush(): {:1.2f} ms".format(
                 self.__waitDTR() * 1000
             )
@@ -361,11 +403,16 @@ class PSU:
         # Select terminal ("channel")
         # Seems to work for "MEAS:..." commands, but "SOUR:VOLT:IMM " could
         # not care less ("INST:SEL" == "INST")
-        self.__write("INST P25V")
-        # DTR comes up, but the PSU IS NOT READY! Wait a long time...
-        time.sleep(__RECOVERY_DELAY__)
-        if self.__transact("INST?") != "P25V":
-            raise ValueError("Unable to select output terminal!")
+        self.__write("INST {}".format(Config.PSU.Default.terminal))
+        # DTR comes up, but the PSU IS NOT READY! If you now issue some other
+        # command, the last replay is sent again ("SYST:VERS?" -> "1995.0")!!
+        # time.sleep(0.3)
+        if self.__transact("INST?") != Config.PSU.Default.terminal:
+            raise ValueError(
+                "Unable to select output terminal! Returned: '{}'".format(
+                    self._last_read
+                )
+            )
 
         #
         # Set default values
@@ -378,7 +425,7 @@ class PSU:
             )
         )
         # AGAIN, DTR comes up, but the PSU is not ready
-        time.sleep(__RECOVERY_DELAY__)
+        #time.sleep(__RECOVERY_DELAY__)
         setv, setcl = self.__transact(
             "APPL? {}".format(
                 Config.PSU.Default.terminal
@@ -401,11 +448,11 @@ class PSU:
 
 
     def __waitDTR(self):
-        """Use to determine when it is OK to send to PSU. This method wait for the unit to raise DTR (for us, in PySerial, port.dsr), or raises a serial.SerialTimeoutException after 100ms. For debug/testing purposes, returns the time spent waiting.
+        """Use to determine when it is OK to send to PSU. This method wait for the unit to raise DTR (for us, in PySerial, port.dsr), or raises a serial.SerialTimeoutException after 500ms. For debug/testing purposes, returns the time spent waiting.
         NOTE: DTR will NOT raise if the PSU has data to be read! The SCPI protocol interactions are YOUR responsibility!"""
         start = time.monotonic()
-        while not self.port.dsr and time.monotonic() - start < 5.5:
-            time.sleep(0.01)
+        while not self.port.dsr and time.monotonic() - start < 0.5:
+            time.sleep(0.005)
         if not self.port.dsr:
             raise serial.SerialTimeoutException(
                 "PSU DTR did not go high within 100ms!"
@@ -415,9 +462,10 @@ class PSU:
 
     def __write(self, command: str, ignore_dtr = False) -> None:
         """Send SCPI command string to serial adapter."""
+        start = time.monotonic()
         try:
             if not ignore_dtr:
-                print(
+                log(
                     "__write('{}') waited DTR for {:1.2f} ms".format(
                         command,
                         self.__waitDTR() * 1000
@@ -426,74 +474,58 @@ class PSU:
             self.port.write((command + "\r\n").encode('utf-8'))
         except Exception as e:
             raise Exception(str(e) + " Command: '{}'".format(command)) from None
-
+        self._transaction_log.append(
+            ((time.monotonic() - start) * 1000, command, None)
+        )
 
     def __transact(self, command: str, ignore_dtr = False) -> str:
         """Read SCPI command response from serial adapter."""
-        self.__write(command, ignore_dtr)
-        # "Surprise", PySerial's DSR/DTR hardware flow control doesn't seen to
-        # do anything at all.
-        # PSU DTR *must* become low! It indicates PSU has data to be read.
-        # Blindy going into a read before this has proven to be a bad idea.
-        # So we do this now...
-        self._loops = 0
-        while self.port.dsr:
-            # In tests, usually less than 100 loops
-            if self._loops > 1000:
-                raise ValueError("PSU DTR does not go down!")
-            self._loops += 1
-        # print(
-        #     "DTR:", str(self.port.dsr),
-        #     "DSR:", str(self.port.dtr)
-        # )
-        # # .readline() DOES observe timeout (unlike buggy .read_until())
-        # # and only returns if line termination OR timeout occured.
-        # # .readline() is provided by io.IOBase. Line terminator is always b'\n'.
-        # start = time.monotonic()
-        # print("Before .readline() DTR:", str(self.port.dsr), "DSR:", str(self.port.dtr))
-        # line = self.port.readline()
-        # print("After .readline() DTR:", str(self.port.dsr), "DSR:", str(self.port.dtr))
-        # print(
-        #     ".readline() took {:1.2f} ms".format(
-        #         (time.monotonic() - start) * 1000
-        #     )
-        # )
-        # # In case our line does NOT end with line termination character,
-        # # we know that the return is a timeout.
-        # if line[-1:] != b'\n':
-        #     raise serial.SerialTimeoutException(
-        #         "Serial readline() timeout for '{}'! ('{}')".format(
-        #             command,
-        #             line or "None"
-        #         )
-        #     )
-        # return line.decode('utf-8')[:-2]
+        start = time.monotonic()
+        self._last_read = None
+        log("self._last_read set to None ('{}')".format(self._last_read))
+        retry = 3
+        while retry:
+            retry -= 1
+            # Flush is VERY IMPORTANT! You WILL get the last read otherwise
+            self.port.flush()
+            try:
+                self.__write(command, ignore_dtr)
+            except Exception as e:
+                log("__write() returned with an exception!")
+                log(str(e).replace('\n', ' '))
+                raise
+            # "Surprise", PySerial's DSR/DTR hardware flow control doesn't seem
+            # to do anything at all.
+            # PSU DTR *must* become low! It indicates PSU has data to be read.
+            # Blindy going into a read before this has proven to be a bad idea.
+            # So we do this now...
+            self._loops = 0
+            while self.port.dsr:
+                # In tests, usually less than 100 loops
+                if self._loops > 1000:
+                    raise ValueError("PSU DTR does not go down!")
+                self._loops += 1
 
-        # Another approach that does not rely on DSR/DTR - read until message
-        # termination: .read_until()
-        # THIS METHOD HAS A BUG IN PySerial 3.2.1!! It DOES NOT observe timeout.
-        # Basically, *IF* message is read incompletely (someone yanks the cable,
-        # unit restarts... ) and this call cannot receive the line termination,
-        # it blocks forever. This has been fixed in 2016 (issue #181) in the
-        #  PySerial
-        # GitHub repository, but this fix has been done just couple of weeks after
-        # the last release (3.2.1), and a new release has not been made for past
-        # three years.
-        # PATE MONITOR SOLUTION:    We let the method get stuck.
-        #                           We also implement a heart-beat for all
-        #                           daemons, which means that if the method
-        #                           gets stuck for too long, the heart-beat
-        #                           stops, and our background daemon will
-        #                           kill and restart this daemon.
-        line = self.port.read_until(b'\r\n')
-        if line[-1:] != b'\n':
-            raise serial.SerialTimeoutException(
-                "Serial readline() timeout for '{}'! ('{}')".format(
-                    command,
-                    line or "None"
-                )
-            )
-        return line.decode('utf-8')[:-2]
+            self._last_read = None
+            self._last_read = self.port.read_until(b'\r\n')
+            if self._last_read[-1:] != b'\n':
+                if retry == 0:
+                    raise serial.SerialTimeoutException(
+                        "Serial readline() timeout for '{}'! ('{}')".format(
+                            command,
+                            self._last_read or "None"
+                        )
+                    )
+                else:
+                    log("Retry #{}".format(retry + 1))
+            else:
+                break
+        self._last_read = self._last_read.decode('utf-8')[:-2]
+        log("__transact('{}') -> '{}'".format(command, self._last_read))
+        self._transaction_log.append(
+            ((time.monotonic() - start) * 1000, command, self._last_read)
+        )
+        return self._last_read
 
 
     def next_error(self):
@@ -530,20 +562,19 @@ if __name__ == "__main__":
     else:
         port = sys.argv[1]
 
-
     # Do some stuff
-    print("Using port '{}'".format(port))
+    log("Using port '{}'".format(port))
     with PSU(port) as psu:
 
-        print("Volts: {:1.3f}".format(psu.measure.voltage()))
-        print(psu.values)
+        log("Volts: {:1.3f}".format(psu.measure.voltage()))
+        log(psu.values)
 
         psu.power = False
         psu.voltage = 3.3
         psu.current_limit = 0.3
         psu.power = True
         reading = psu.measure.voltage()
-        print("Set: {}, Measured: {}".format(psu.voltage, reading))
+        log("Set: {}, Measured: {}".format(psu.voltage, reading))
         if abs(psu.voltage - reading)  > 0.02:
             raise ValueError("Unexpected voltage differential!")
 
@@ -553,7 +584,9 @@ if __name__ == "__main__":
             raise ValueError("Unexpected voltage difference between set and measured values!")
 
 
-        print(psu.values)
+        log(psu.values)
         psu.power = False
+
+    #print(psu._)
 
 # EOF
