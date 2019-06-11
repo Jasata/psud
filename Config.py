@@ -23,7 +23,7 @@ class Config:
             current_limit   = 0.5       #[A]
         class Daemon:
             name                = "patemon.psud"
-            working_directory   = '/srv/nginx-root'
+            working_directory   = '/srv'
             lock_directory      = '/tmp'
             class Interval:
                 command         = 0.1   # seconds between polls
@@ -42,7 +42,7 @@ class Config:
             housekeeping        = 60    # seconds between housekeeping retrieval
     # 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'
     logging_level               = "INFO"
-    database_file               = '/srv/nginx-root/pmapi.sqlite3'
+    database_file               = '/srv/pmapi.sqlite3'
     command_poll                = 0.1   # seconds
 
 
