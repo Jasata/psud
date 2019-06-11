@@ -11,6 +11,7 @@
 #
 import os
 import sqlite3
+import decimal
 
 from Config import Config
 
@@ -73,6 +74,9 @@ class Database:
                     cursor.execute(insert, values)
             except Exception as e:
                 self.db.connection.rollback()
+                print(update)
+                print(values)
+                raise
                 raise ValueError(
                     "values: {}, update SQL: {}, insert SQL: {}".format(
                         str(values), update, insert
@@ -96,6 +100,10 @@ class Database:
         if not self.connection.execute(sql).fetchall():
             raise ValueError("Table 'psu' does not exist!")
 
+        # Register Decimal() adapters
+        sqlite3.register_adapter(decimal.Decimal, Database.decimal2string)
+        sqlite3.register_converter("decimal", Database.string2decimal)
+
 
     def __enter__(self):
         return self
@@ -108,6 +116,16 @@ class Database:
         self.connection.execute("DELETE FROM psu")
         self.connection.commit()
         self.connection.close()
+
+
+    @staticmethod
+    def decimal2string(dec):
+        return str(dec)
+
+
+    @staticmethod
+    def string2decimal(string):
+        return decimal.Decimal(string)
 
 
     @staticmethod

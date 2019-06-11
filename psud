@@ -127,11 +127,11 @@ if __name__ == "__main__":
     parser.add_argument(
         '-p',
         '--port',
-        help = "Set serial port device. Default: '{}'".format(Config.PSU.port),
+        help = "Set serial port device. Default: '{}'".format(Config.PSU.Serial.port),
         nargs = '?',
         dest = "port",
         const = "DEVICE",
-        default = Config.PSU.port,
+        default = Config.PSU.Serial.port,
         type = str
     )
     parser.add_argument(
@@ -155,8 +155,8 @@ if __name__ == "__main__":
     #
     # Options that have default values are guaranteed to exist.
     #
-    Config.database_file = args.database_file
-    Config.PSU.port      = args.port
+    Config.database_file    = args.database_file
+    Config.PSU.Serial.port  = args.port
     # Convert to numeric logging level
     Config.logging_level = getattr(logging, args.logging_level)
     # Store daemonization flag
@@ -216,16 +216,16 @@ if __name__ == "__main__":
     #
     # Auto detect Agilent E3631
     #
-    if Config.PSU.port.lower() == "auto":
+    if Config.PSU.Serial.port.lower() == "auto":
         print("Auto detecting Agilent E3631 serial port...", end="", flush=True)
         from PSU import PSU
-        Config.PSU.port = PSU.find()
-        if Config.PSU.port is None:
+        Config.PSU.Serial.port = PSU.find()
+        if Config.PSU.Serial.port is None:
             print("NOT FOUND!")
             print("Unable to find power supply. Exiting...")
             os._exit(-1)
         else:
-            print("found at port '{}'.\n".format(Config.PSU.port))
+            print("found at port '{}'.\n".format(Config.PSU.Serial.port))
 
     #
     # If not autodetected, and if we will run as a daemon...
@@ -234,16 +234,16 @@ if __name__ == "__main__":
     #
     # NOTE: lint is confused. member variable DOES exist
     elif Config.PSU.Daemon.run_as_daemon:
-        print("Opening '{}'...".format(Config.PSU.port), end = '', flush = True)
+        print("Opening '{}'...".format(Config.PSU.Serial.port), end = '', flush = True)
         try:
             port = serial.Serial(
-                port            = Config.PSU.port,
-                baudrate        = Config.PSU.baudrate,
-                parity          = Config.PSU.parity,
-                stopbits        = Config.PSU.stopbits,
-                bytesize        = Config.PSU.bytesize,
-                timeout         = Config.PSU.timeout,
-                write_timeout   = Config.PSU.write_timeout
+                port            = Config.PSU.Serial.port,
+                baudrate        = Config.PSU.Serial.baudrate,
+                parity          = Config.PSU.Serial.parity,
+                stopbits        = Config.PSU.Serial.stopbits,
+                bytesize        = Config.PSU.Serial.bytesize,
+                timeout         = Config.PSU.Serial.timeout,
+                write_timeout   = Config.PSU.Serial.write_timeout
             )
         except Exception as e:
             print("FAILED!")

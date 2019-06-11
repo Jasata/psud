@@ -50,7 +50,7 @@ def psu():
     """PSU controller main loop."""
     try:
         log = logging.getLogger(Config.PSU.Daemon.name)
-        psu = PSU(Config.PSU.port)
+        psu = PSU(Config.PSU.Serial.port)
         with \
             Database(Config.database_file) as db, \
             IntervalScheduler(
