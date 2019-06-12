@@ -166,3 +166,12 @@ Commands are also reasonably fast:
     Nov 25 00:20:29 nuc patemon.psud[28782]: PSU:SET VOLTAGE took 58.667 ms
 
 Results are likely to become worse with actual Agilent PSU (as opposed to emulated unit) and once this is moved to target platform (Raspberry Pi 3 B+).
+
+
+## Database file access
+
+Source [fredericana.com](http://fredericiana.com/2014/11/29/sqlite-error-open-database-file/)
+
+It is not enough for the database file to have correct ownership and permissions. SQLite wants to create temporary files into the same directory, which means that the directory should be inspected as well for access.
+
+A static method to check this has been implemented into the `Database.py:Database.check()`.
