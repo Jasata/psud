@@ -417,12 +417,13 @@ def daemonify(function):
     #
     try:
         with Lockfile(Config.PSU.Daemon.lockfile):
+            # Enter the provided function to begin deamon execution
             function()
     except Lockfile.AlreadyRunning as e:
         log.error(str(e) + " Exiting!")
         os._exit(-1)
     except Exception as e:
-        log.exception("Daemon routine exits with an exception!")
+        log.exception("Daemon routine/function exits with an exception!")
         os._exit(-1)
 
 

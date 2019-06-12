@@ -42,7 +42,7 @@ class Config:
             housekeeping        = 60    # seconds between housekeeping retrieval
     # 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'
     logging_level               = "INFO"
-    database_file               = '/srv/pmapi.sqlite3'
+    database_file               = '/srv/patemon.sqlite3'
     command_poll                = 0.1   # seconds
 
 

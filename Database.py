@@ -7,13 +7,16 @@
 #   0.1.0   2018.11.14  Initial version.
 #   0.1.1   2018.11.16  Replace print()'s with exceptions.
 #   0.1.2   2018.11.18  Static 'status' methods added.
+#   0.1.3   2019.06.12  No longer dependent on Config.py:Config.
+#   0.2.0   2019.06.12  New static method Database.check() for
+#                       database file and directory checking.
 #
 #
 import os
 import sqlite3
 import decimal
 
-from Config import Config
+# from Config import Config
 
 class Database:
     # Class instance will have only '.connection' member.
@@ -21,6 +24,7 @@ class Database:
 
     class Command:
         def __init__(self, db):
+            # Store the provided parent Database object instance
             self.db = db
 
         def next(self) -> tuple:
@@ -57,6 +61,7 @@ class Database:
 
     class PSU:
         def __init__(self, db):
+            # Store the provided parent Database object instance
             self.db = db
 
         def update(self, values: dict):
@@ -93,6 +98,10 @@ class Database:
         """Initialize object and test that table 'psu' exists."""
         self.command = self.Command(self)
         self.psu     = self.PSU(self)
+
+        # Check for database existance, access and content ('psu' -table)
+        # Raises an exception if issues are detected
+        Database.check(filename)
 
         self.connection = sqlite3.connect(filename, timeout=3)
         self.connection.execute("PRAGMA foreign_keys = ON")
@@ -199,11 +208,13 @@ class Database:
     def lastupdate(filename: str) -> float:
         """Returns the number of seconds since last update."""
         try:
+            # The 'psu' table can have only zero or one rows.
+            # Locked with primary key column value constraint.
             sql = """
                 SELECT (julianday('now') - julianday(modified)) * 86400
                 FROM psu
                 """
-            with sqlite3.connect(Config.database_file) as db:
+            with sqlite3.connect(filename) as db:
                 result = db.execute(sql).fetchone()
 
             if result:
@@ -211,6 +222,79 @@ class Database:
             else:
                 return None
         except:
+            return None
+
+
+    #
+    # NOTE: Should be updated to use the above functions
+    #
+    @staticmethod
+    def check(filename : str):
+        """Checks the existance and access to specified databasefile. Raises and exception if a problem is discovered, otherwise returns silently."""
+        import stat
+        import pwd
+        import grp
+        try:
+            # 1. File exists and it is a file
+            if not os.path.isfile(filename):
+                raise ValueError(
+                    "Database file '{}' does not exist?".format(filename)
+                )
+            # 2. File is owned by patemon.www-data
+            correct_owner = "patemon.www-data"
+            current_owner = \
+                pwd.getpwuid(os.stat(filename).st_uid).pw_name + "." + \
+                grp.getgrgid(os.stat(filename).st_gid).gr_name
+            if current_owner != correct_owner:
+                raise ValueError(
+                    "Database file '{}' has incorrect ownership ('{}', should be '{}')"
+                    .format(filename, current_owner, correct_owner)
+                )
+            # 3. File permissions are 66?
+            correct_permissions = "0o66?"
+            current_permissions = oct(os.stat(filename)[stat.ST_MODE] & 0o770)[:-1] + "?"
+            if current_permissions != correct_permissions:
+                raise ValueError(
+                    "Database file '{}' has incorrect permissions ('{}', should be '{}')"
+                    .format(filename, current_permissions, correct_permissions)
+                )
+            # 4. Directory is owned by patemon.www-data (because temporary files)
+            directory = os.path.dirname(filename)
+            correct_owner = "patemon.www-data"
+            current_owner = \
+                pwd.getpwuid(os.stat(directory).st_uid).pw_name + "." + \
+                grp.getgrgid(os.stat(directory).st_gid).gr_name
+            if current_owner != correct_owner:
+                raise ValueError(
+                    "Database directory '{}' has incorrect ownership ('{}', should be '{}')"
+                    .format(directory, current_owner, correct_owner)
+                )
+            # 5. Directory permissions are 77?
+            correct_permissions = "0o77?"
+            current_permissions = oct(os.stat(directory)[stat.ST_MODE] & 0o770)[:-1] + "?"
+            if current_permissions != correct_permissions:
+                raise ValueError(
+                    "Database file '{}' has incorrect permissions ('{}', should be '{}')"
+                    .format(directory, current_permissions, correct_permissions)
+                )
+            # 6. Access database and verify columns
+            #    This portion could be replaced by above methods...
+            sql = """
+                SELECT  id, power, voltage_setting, current_limit,
+                        measured_current, measured_voltage, modified
+                FROM    psu
+            """
+            with sqlite3.connect(filename) as db:
+                result = db.execute(sql).fetchone()
+
+            if result:
+                _ = float(result[0])
+            else:
+                pass
+
+        except Exception as e:
+            raise ValueError("Database not OK!\n" + str(e)) from e
+        else:
             return None
 
 

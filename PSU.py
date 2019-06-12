@@ -4,8 +4,9 @@
 # PSU.py - Jani Tammi <jasata@utu.fi>
 #   0.1     2018.10.15  Initial version (call interface only).
 #   0.2     2018.12.03  Full implementation.
-#   0.3.    2018.12.05  DTR seems to be a lie in case of certain commands.
+#   0.3     2018.12.05  DTR seems to be a lie in case of certain commands.
 #                       Added hardcoded long delays after such commands.
+#   0.4     2019.06.12  Syslogging now a static class method of PSU.
 #
 #
 # This class interface uses typing (Python 3.5+) for public methods.
@@ -101,25 +102,11 @@
 import time
 import serial
 import decimal
+import logging
 
 from typing import Union
 from Config import Config
 
-
-# FOR DEBUG LOGGING.
-__log_start__ = time.monotonic()
-
-def log(msg):
-    print(
-        "[{: >8.3f}] {}".format(
-            (time.monotonic() - __log_start__) * 1000,
-            msg or ""
-        )
-    )
-
-#__RECOVERY_DELAY__ = 0.3    # 300 ms recovery time
-#                            # necessary after certain commands;
-#                            # OUTP, CURR, INST, APPL, etc.
 
 class PSU:
 
@@ -131,6 +118,12 @@ class PSU:
     #
     # instance of serial.Serial (public)
     port    = None
+
+    #
+    # static properties for syslogging (see .syslog() )
+    #
+    syslogging_started  = None  # gets time.monotonic()
+    syslogger           = None  # gets logging.getLogger()
 
     ###########################################################################
     #
@@ -297,28 +290,31 @@ class PSU:
                 break
         return port
 
+    # Must be static method, because this method has be be usable
+    # before the class is instantiated. Specifically, by the static
+    # .find() -method
     @staticmethod
     def flush(port: serial.Serial):
         """Clear serial line/buffers from artefacts. Agilent E3631 User's Guide (p. 59) tells us that sending CTRL-C to the unit will cause it to discard any pending output. ("^C" ETX; "End of Text", 0x03 or b'\x03'). Quite: "For the <Ctrl-C> character to be recognized reliably by the power supply while it holds DTR FALSE, the bus controller must first set DSR FALSE. (NOTE: for us, in PySerial, this means setting _our_ DTR low)."""
         discard_timeout = 0.1
-        log("#1 {} {}".format(port.dsr, port.dtr))
+        PSU.syslog("#1 {} {}".format(port.dsr, port.dtr))
         port.flushOutput()
-        log("#2 {} {}".format(port.dsr, port.dtr))
+        PSU.syslog("#2 {} {}".format(port.dsr, port.dtr))
         port.flushInput()
-        log("#3 {} {}".format(port.dsr, port.dtr))
+        PSU.syslog("#3 {} {}".format(port.dsr, port.dtr))
         time.sleep(0.1)
-        log("#4 {} {}".format(port.dsr, port.dtr))
+        PSU.syslog("#4 {} {}".format(port.dsr, port.dtr))
         port.dtr = 0
-        log("#5 {} {}".format(port.dsr, port.dtr))
+        PSU.syslog("#5 {} {}".format(port.dsr, port.dtr))
         port.write(b'\x03')
-        log("#6 {} {}".format(port.dsr, port.dtr))
+        PSU.syslog("#6 {} {}".format(port.dsr, port.dtr))
         port.dtr = 1
-        log("#7 {} {}".format(port.dsr, port.dtr))
+        PSU.syslog("#7 {} {}".format(port.dsr, port.dtr))
         # wait until unit raises DTR
         start = time.monotonic()
         while not port.dsr and time.monotonic() - start < discard_timeout:
             time.sleep(0.01)
-        log("#8 {} {}".format(port.dsr, port.dtr))
+        PSU.syslog("#8 {} {}".format(port.dsr, port.dtr))
         if not port.dsr:
             raise serial.SerialTimeoutException(
                 "Device did not raise DTR within {:1.2f} ms".format(
@@ -340,6 +336,8 @@ class PSU:
     #
     def __init__(self, port = None):
         """Connect and initialize PSU. If port argument is omitted, Config.PSU.Serial.port is used."""
+
+        # Instantiate .measure member
         self.measure = self.Measure(self)
 
         # If port == 'auto', try to .find() it.
@@ -373,7 +371,7 @@ class PSU:
 
         # Try to clean the line and buffers
         PSU.flush(self.port)
-        log(
+        PSU.syslog(
             "DTR wait after PSU.flush(): {:1.2f} ms".format(
                 self.__waitDTR() * 1000
             )
@@ -465,7 +463,7 @@ class PSU:
         start = time.monotonic()
         try:
             if not ignore_dtr:
-                log(
+                PSU.syslog(
                     "__write('{}') waited DTR for {:1.2f} ms".format(
                         command,
                         self.__waitDTR() * 1000
@@ -482,7 +480,7 @@ class PSU:
         """Read SCPI command response from serial adapter."""
         start = time.monotonic()
         self._last_read = None
-        log("self._last_read set to None ('{}')".format(self._last_read))
+        PSU.syslog("self._last_read set to None ('{}')".format(self._last_read))
         retry = 3
         while retry:
             retry -= 1
@@ -491,8 +489,8 @@ class PSU:
             try:
                 self.__write(command, ignore_dtr)
             except Exception as e:
-                log("__write() returned with an exception!")
-                log(str(e).replace('\n', ' '))
+                PSU.syslog("__write() returned with an exception!")
+                PSU.syslog(str(e).replace('\n', ' '))
                 raise
             # "Surprise", PySerial's DSR/DTR hardware flow control doesn't seem
             # to do anything at all.
@@ -517,11 +515,11 @@ class PSU:
                         )
                     )
                 else:
-                    log("Retry #{}".format(retry + 1))
+                    PSU.syslog("Retry #{}".format(retry + 1))
             else:
                 break
         self._last_read = self._last_read.decode('utf-8')[:-2]
-        log("__transact('{}') -> '{}'".format(command, self._last_read))
+        PSU.syslog("__transact('{}') -> '{}'".format(command, self._last_read))
         self._transaction_log.append(
             ((time.monotonic() - start) * 1000, command, self._last_read)
         )
@@ -531,6 +529,27 @@ class PSU:
     def next_error(self):
         code, msg = self.__transact("SYST:ERR?").split(",")
         return msg
+
+
+    #
+    # Internal syslog handler
+    #
+    @staticmethod
+    def syslog(msg):
+
+        # Setup private syslog facility
+        if not PSU.syslogging_started:
+            PSU.syslogging_started = time.monotonic()
+            PSU.syslogger = logging.getLogger("PSU Internal")
+            PSU.syslogger.setLevel(logging.DEBUG)
+            PSU.syslogger.addHandler(logging.handlers.SysLogHandler())
+            PSU.syslogger.debug('Debug syslog handler setup')
+        PSU.syslogger.debug(
+            "[{: >8.3f}] {}".format(
+                (time.monotonic() - PSU.syslogging_started) * 1000,
+                msg or ""
+            )
+        )
 
 
     #
@@ -563,18 +582,18 @@ if __name__ == "__main__":
         port = sys.argv[1]
 
     # Do some stuff
-    log("Using port '{}'".format(port))
+    PSU.syslog("Using port '{}'".format(port))
     with PSU(port) as psu:
 
-        log("Volts: {:1.3f}".format(psu.measure.voltage()))
-        log(psu.values)
+        PSU.syslog("Volts: {:1.3f}".format(psu.measure.voltage()))
+        PSU.syslog(psu.values)
 
         psu.power = False
         psu.voltage = 3.3
         psu.current_limit = 0.3
         psu.power = True
         reading = psu.measure.voltage()
-        log("Set: {}, Measured: {}".format(psu.voltage, reading))
+        PSU.syslog("Set: {}, Measured: {}".format(psu.voltage, reading))
         if abs(psu.voltage - reading)  > 0.02:
             raise ValueError("Unexpected voltage differential!")
 
@@ -584,7 +603,7 @@ if __name__ == "__main__":
             raise ValueError("Unexpected voltage difference between set and measured values!")
 
 
-        log(psu.values)
+        PSU.syslog(psu.values)
         psu.power = False
 
     #print(psu._)
