@@ -25,6 +25,8 @@ class Config:
             name                = "patemon.psud"
             working_directory   = '/srv'
             lock_directory      = '/tmp'
+            lockfile            = '(uninitialized)'
+            run_as_daemon       = True
             class Interval:
                 command         = 0.1   # seconds between polls
                 update          = 0.3   # seconds between updates

@@ -1,7 +1,7 @@
 #! /usr/bin/env python3
 # -*- coding: utf-8 -*-
 #
-# Turku University (2018) Department of Future Technologies
+# Turku University (2018-2019) Department of Future Technologies
 # Foresail-1 / PATE Monitor / Middleware (PMAPI)
 # PSU controller daemon
 #
@@ -12,6 +12,7 @@
 #   0.4.0   2018.11.17  Refactored.
 #   0.4.1   2018.11.18  Minor fixes.
 #   0.4.2   2018.11.24  Serial timeout handling plus speedups.
+#   0.5.0   2019.06.13  Logging rewritten.
 #
 #
 # Execute this script to start the daemon.
@@ -27,14 +28,14 @@
 #       Class files (names starting with capital letter) are used by the
 #       'control.py' main loop to execute the tasks periodically.
 #
-__version__ = "0.4.2"
+__version__ = "0.5.0"
 __author__  = "Jani Tammi <jasata@utu.fi>"
 VERSION     = __version__
 HEADER      = """
 =============================================================================
 University of Turku, Department of Future Technologies
 ForeSail-1 / PATE Monitor
-PATE Monitor / PSU Control Daemon version {}, 2018 {}
+PATE Monitor / PSU Control Daemon version {}, 2018-2019 {}
 """.format(__version__, __author__)
 
 import os
@@ -52,6 +53,7 @@ import argparse
 from pathlib        import Path
 
 # Application specific
+import log
 import process
 from Config         import Config, display_config
 from Database       import Database
@@ -95,9 +97,11 @@ if __name__ == "__main__":
     )
 
 
+    ##########################################################################
     #
     # Commandline arguments
     #
+    ##########################################################################
     parser = argparse.ArgumentParser(
         description     = HEADER,
         formatter_class = argparse.RawTextHelpFormatter
@@ -154,6 +158,7 @@ if __name__ == "__main__":
 
     #
     # Options that have default values are guaranteed to exist.
+    # Therefore, we can simply update Config with those args values.
     #
     Config.database_file    = args.database_file
     Config.PSU.Serial.port  = args.port
@@ -174,6 +179,7 @@ if __name__ == "__main__":
             Config.PSU.Daemon.name
         )
     )
+    # End of Commandline arguments
 
 
     #
@@ -183,6 +189,27 @@ if __name__ == "__main__":
         display_config(Config)
         print("\n\n")
 
+
+    #
+    # Setup logging only AFTER Config.py:Config has been modified!!!
+    #
+    #       Observes;
+    #           Config.PSU.Daemon.name
+    #           Config.PSU.Daemon.run_as_daemon
+    #           Config.logging_level
+    #       Provides;
+    #           log.debug()
+    #           log.info()
+    #           log.error()
+    #
+    log.init()
+
+
+    ##########################################################################
+    #
+    # Utility invocations (status report and kill daemon, for now...)
+    #
+    ##########################################################################
 
     #
     # Display status report
@@ -200,12 +227,18 @@ if __name__ == "__main__":
         os._exit(0)
 
 
+    ##########################################################################
     #
-    # Warn user if psud is already running
+    # Preliminaries before the daemon (or console) process is started
+    #
+    ##########################################################################
+
+    #
+    # Warn user if a psud -process is already running
     #
     pid = process.pid()
     if process.is_running(pid):
-        print(
+        log.warning(
             "WARNING: '{}' seems to be already running! (PID: {})\n".format(
                 Config.PSU.Daemon.name,
                 pid
@@ -214,18 +247,36 @@ if __name__ == "__main__":
 
 
     #
+    # Sanity check database file, its directory
+    #
+    try:
+        Database.check_db_file(Config.database_file)
+    except Exception as e:
+        log.error("SQLite3 Database not OK!\n" + str(e))
+        os._exit(-1)
+
+
+    #
+    # Sanity check 'psu' -table
+    #
+    try:
+        Database.check_psu_table(Config.database_file)
+    except Exception as e:
+        log.error("Database table 'psu' not OK!\n" + str(e))
+        os._exit(-1)
+
+    #
     # Auto detect Agilent E3631
     #
     if Config.PSU.Serial.port.lower() == "auto":
-        print("Auto detecting Agilent E3631 serial port...", end="", flush=True)
+        log.info("Auto detecting Agilent E3631 serial port...")
         from PSU import PSU
         Config.PSU.Serial.port = PSU.find()
         if Config.PSU.Serial.port is None:
-            print("NOT FOUND!")
-            print("Unable to find power supply. Exiting...")
+            log.error("Unable to find power supply. Exiting...")
             os._exit(-1)
         else:
-            print("found at port '{}'.\n".format(Config.PSU.Serial.port))
+            log.info("found at port '{}'.\n".format(Config.PSU.Serial.port))
 
     #
     # If not autodetected, and if we will run as a daemon...
@@ -234,7 +285,7 @@ if __name__ == "__main__":
     #
     # NOTE: lint is confused. member variable DOES exist
     elif Config.PSU.Daemon.run_as_daemon:
-        print("Opening '{}'...".format(Config.PSU.Serial.port), end = '', flush = True)
+        log.debug("Testing '{}'...".format(Config.PSU.Serial.port))
         try:
             port = serial.Serial(
                 port            = Config.PSU.Serial.port,
@@ -246,25 +297,12 @@ if __name__ == "__main__":
                 write_timeout   = Config.PSU.Serial.write_timeout
             )
         except Exception as e:
-            print("FAILED!")
-            print(str(e))
+            log.error("Port '{}' test failure!".format(Config.PSU.Serial.port))
+            log.error(str(e))
             os._exit(-1)
         else:
-            print("OK")
+            log.debug("Port '{}' OK".format(Config.PSU.Serial.port))
             port.close()
-
-
-    #
-    # Check that database file exists
-    #
-    if not all(Database.filestatus(Config.database_file)):
-        print(
-            "Database '{}': {}".format(
-                Config.database_file,
-                Database.filestatusstring(Config.database_file)
-            )
-        )
-        os._exit(-1)
 
 
     #

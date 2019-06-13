@@ -7,7 +7,8 @@
 #
 # control.py - Jani Tammi <jasata@utu.fi>
 #   0.1     2018.11.14  Initial version.
-#   0.2     2018.11.18  Added status 
+#   0.2     2018.11.18  Added status.
+#   0.3     2019.06.13  Logging now provided by log.py.
 #
 #
 # Loop that processess 'command' table rows into SCPI commands
@@ -18,9 +19,10 @@
 import os
 import sys
 import time
-import logging
+#import logging
 
 # Application specific
+import log
 from Config             import Config
 from IntervalScheduler  import IntervalScheduler
 from Database           import Database
@@ -33,6 +35,10 @@ from serial import SerialTimeoutException, SerialException
 # Number of consecutive Exceptions allowed before exiting
 _retry_count = 3
 
+
+#
+# Ticker to be used ONLY in console mode!
+#
 def ticker():
     """Rotating character. Used only on non-daemon case."""
     try:
@@ -49,7 +55,7 @@ def ticker():
 def psu():
     """PSU controller main loop."""
     try:
-        log = logging.getLogger(Config.PSU.Daemon.name)
+        #log = logging.getLogger(Config.PSU.Daemon.name)
         psu = PSU(Config.PSU.Serial.port)
         with \
             Database(Config.database_file) as db, \

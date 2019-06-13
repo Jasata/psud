@@ -9,6 +9,7 @@
 #   0.1     2018.11.14  Initial version.
 #   0.2     2018.11.17  Renamed from 'daemonify' to 'process'.
 #   0.3     2018.11.18  Added status methods.
+#   0.4     2019.06.13  Logging now provided by log.py.
 #
 #
 # Module that implements minimal Linux daemonification.
@@ -19,9 +20,12 @@ import time
 import errno
 import fcntl
 import signal
-import logging
-import logging.handlers
 
+
+#
+# Application specific
+#
+import log
 # Config module was loaded by 'psud.py' and not unloaded.
 # For this purpose, the changes made to the class persist
 # when 'Config.py' is loaded again by this module.
@@ -30,6 +34,9 @@ from Lockfile       import Lockfile
 
 
 
+#
+# Utility methods (output to console, for obvious reasons)
+#
 def pid():
     """Returns psud pid, if lock file exists and a process (identified by the PID in the lock file) exists, or otherwise 'None'."""
     try:
@@ -214,13 +221,13 @@ def status():
 #
 def sigterm(signum, frame):
     from Config import Config
-    log = logging.getLogger(Config.PSU.Daemon.name).info("Terminating...")
+    log.info("Terminating...")
     # To-do : remove psu row + commit
     sys.exit(0)
 
 def sighup(signum, frame):
     from Config import Config
-    log = logging.getLogger(Config.PSU.Daemon.name).info("SIGHUP...")
+    log.info("SIGHUP...")
     pass
 
 # def silentremove(filename):
@@ -246,27 +253,13 @@ def start_regular_process(function):
     try:
         os.chdir(Config.PSU.Daemon.working_directory)
     except Exception as e:
-        print(
+        log.error(
             "Unable to change directory to '{}'!\n".format(
                 Config.PSU.Daemon.working_directory
             )
         )
-        print(str(e))
+        log.error(str(e))
         os._exit(-1)
-
-
-    #
-    # Set up logging
-    #
-    log = logging.getLogger(Config.PSU.Daemon.name)
-    log.setLevel(Config.logging_level)
-    handler = logging.StreamHandler(sys.stdout)
-    formatter = logging.Formatter(
-        fmt='%(asctime)s.%(msecs)03d: %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
-    handler.setFormatter(formatter)
-    log.addHandler(handler)
 
 
     #
@@ -296,7 +289,7 @@ def daemonify(function):
     #
     process_id = os.fork()
     if process_id < 0:
-        print("os.fork() failure! Cannot deamonify!")
+        log.info("os.fork() failure! Cannot deamonify!")
         os._exit(-1)
     elif process_id != 0:
         # NOTE: None of this makes any sense with double-forking.
@@ -321,22 +314,6 @@ def daemonify(function):
     # First child process
     #
     try:
-        #
-        # Set up logging
-        #
-        log = logging.getLogger(Config.PSU.Daemon.name)
-        log.setLevel(Config.logging_level)
-        sysloghandler = logging.handlers.SysLogHandler(
-            address='/dev/log',
-            facility=logging.handlers.SysLogHandler.LOG_DAEMON
-        )
-        formatter = logging.Formatter(
-            '%(asctime)s %(name)s[%(process)d]: %(message)s', '%b %e %H:%M:%S'
-        )
-        sysloghandler.setFormatter(formatter)
-        log.addHandler(sysloghandler)
-
-
         # Dissociate from (parent's) controlling terminal. Signals from
         # dissociated terminal will not reach this new session - which does not
         # /yet/ have a controlling terminal of it's own.
@@ -372,6 +349,8 @@ def daemonify(function):
     #
     try:
         log.info("PATE Monitor PSU Daemon initializing...")
+        log.remove_std_handler()
+        log.info("STDOUT stream handler removed")
 
         #
         # Normally, daemons change working directory to '/', in order to avoid
