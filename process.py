@@ -10,6 +10,8 @@
 #   0.2     2018.11.17  Renamed from 'daemonify' to 'process'.
 #   0.3     2018.11.18  Added status methods.
 #   0.4     2019.06.13  Logging now provided by log.py.
+#   0.4.1   2019.06.13  SIGTERM handler exits now with os._exit()
+#                       instead of sys.exit() (which failed to terminate).
 #
 #
 # Module that implements minimal Linux daemonification.
@@ -221,9 +223,9 @@ def status():
 #
 def sigterm(signum, frame):
     from Config import Config
-    log.info("Terminating...")
+    log.info("SIGTERM received. Terminating...")
     # To-do : remove psu row + commit
-    sys.exit(0)
+    os._exit(0)
 
 def sighup(signum, frame):
     from Config import Config
