@@ -55,8 +55,10 @@ def ticker():
 def psu():
     """PSU controller main loop."""
     try:
-        #log = logging.getLogger(Config.PSU.Daemon.name)
-        psu = PSU(Config.PSU.Serial.port)
+        # Programmable Power Supply (PPSU)
+        # ..also since this context/function is "psu",
+        # we need another name...
+        ppsu = PSU(Config.PSU.Serial.port)
         with \
             Database(Config.database_file) as db, \
             IntervalScheduler(
@@ -64,7 +66,7 @@ def psu():
                 update_interval  = Config.PSU.Daemon.Interval.update
             ) as event:
             log.info("Entering main loop...")
-            log.debug("PSU at port '{}'".format(psu.port.name))
+            log.debug("PSU at port '{}'".format(ppsu.port.name))
             consecutive_error_count = 0
             lastupdate = time.time()
             while True:
@@ -84,16 +86,16 @@ def psu():
                             now = time.time()
 
                             if cmd[1] == "SET VOLTAGE":
-                                psu.voltage = float(cmd[2])
-                                cmd_receipt = (True, str(psu.voltage))
+                                ppsu.voltage = float(cmd[2])
+                                cmd_receipt = (True, str(ppsu.voltage))
 
                             elif cmd[1] == "SET CURRENT LIMIT":
-                                psu.current_limit = float(cmd[2])
-                                cmd_receipt = (True, str(psu.current_limit))
+                                ppsu.current_limit = float(cmd[2])
+                                cmd_receipt = (True, str(ppsu.current_limit))
 
                             elif cmd[1] == "SET POWER":
-                                psu.power = (cmd[2] == "ON")
-                                cmd_receipt = (True, ("OFF", "ON")[psu.power])
+                                ppsu.power = (cmd[2] == "ON")
+                                cmd_receipt = (True, ("OFF", "ON")[ppsu.power])
 
                         except KeyboardInterrupt:
                             # re-raise to exit
@@ -138,7 +140,7 @@ def psu():
                 if events & IntervalScheduler.UPDATE:
                     now = time.time()
                     try:
-                        db.psu.update(psu.values)
+                        db.psu.update(ppsu.values)
                     except KeyboardInterrupt:
                         # re-raise to exit
                         raise
@@ -167,10 +169,10 @@ def psu():
         pass
     except SerialTimeoutException as e:
         # Case 1: USB-serial adapter has disconnected
-        if not os.path.exists(psu.port.name):
+        if not os.path.exists(ppsu.port.name):
             log.error(
                 "USB Serial Adapter '{}' disconnected!".format(
-                    psu.port.name
+                    ppsu.port.name
                 )
             )
         # Case (all others): Unknown reason
@@ -179,10 +181,10 @@ def psu():
             #raise
     except SerialException as e:
         # Case 1: USB-serial adapter has disconnected
-        if not os.path.exists(psu.port.name):
+        if not os.path.exists(ppsu.port.name):
             log.error(
                 "USB Serial Adapter '{}' disconnected!".format(
-                    psu.port.name
+                    ppsu.port.name
                 )
             )
         # Case (all others): Unknown reason

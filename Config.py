@@ -23,6 +23,7 @@ class Config:
             current_limit   = 0.5       #[A]
         class Daemon:
             name                = "patemon.psud"
+            process_owner       = "jani"
             working_directory   = '/srv'
             lock_directory      = '/tmp'
             lockfile            = '(uninitialized)'

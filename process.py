@@ -308,6 +308,9 @@ def daemonify(function):
         #     print("Daemon process has died! Check logs!")
         # else:
         #     print("Daemon appears to run normally. Exiting...")
+
+        # Give a little time for our child to print its message before we end
+        time.sleep(0.4)
         os._exit(0)
 
 
@@ -337,6 +340,10 @@ def daemonify(function):
         elif process_id != 0:
             # As a group and session leader, this exit WILL send SIGHUP, which
             # must be ignored by the child (at least, this first time).
+            print(
+                "PSU Daemon spawned (PID: {}). See syslog for details.\n\n"
+                .format(process_id)
+            )
             os._exit(0)
 
 
@@ -347,12 +354,12 @@ def daemonify(function):
 
     ###########################################################################
     #
-    # Daemon process (second child process)
+    # Daemon process (second child process, parent died above)
     #
     try:
-        log.info("PATE Monitor PSU Daemon initializing...")
         log.remove_std_handler()
-        log.info("STDOUT stream handler removed")
+        log.info("PATE Monitor PSU Daemon initializing...")
+        log.debug("STDOUT logging stream handler removed")
 
         #
         # Normally, daemons change working directory to '/', in order to avoid
