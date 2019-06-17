@@ -266,7 +266,7 @@ class PSU:
                     parity        = Config.PSU.Serial.parity,
                     stopbits      = Config.PSU.Serial.stopbits,
                     bytesize      = Config.PSU.Serial.bytesize,
-                    timeout       = 1.3,
+                    timeout       = 0.3,
                     write_timeout = None
                 )
                 PSU.flush(port)
