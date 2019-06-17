@@ -267,6 +267,12 @@ def start_regular_process(function):
     #
     # Execute main loop
     #
+    log.debug(
+        "Executing daemon main loop function '{}.{}()'".format(
+            function.__module__,
+            function.__name__
+        )
+    )
     try:
         from Lockfile import Lockfile
         with Lockfile(Config.PSU.Daemon.lockfile):

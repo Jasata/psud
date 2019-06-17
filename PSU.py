@@ -232,8 +232,7 @@ class PSU:
     #
     @staticmethod
     def find() -> str:
-        """Finds Agilent PSU from available serial devices.
-        Return device file name or None if not found."""
+        """Finds Agilent PSU from available serial devices. Return device file name or None if not found."""
         def transact(port, command: str) -> str:
             """Argument 'command' of type str. Returns type str"""
             port.write(command.encode('utf-8'))
@@ -241,15 +240,14 @@ class PSU:
             # If the last character is not '\n', we had a timeout
             if line[-1:] != b'\n':
                 raise ValueError(
-                    "Serial read timeout! ({}s)".format(port.timeout)
+                    "Serial read timeout! ({}s)\n".format(port.timeout) + \
+                    "Response string: '{}'".format(line.decode('utf-8'))
                 )
             return line.decode('utf-8')
         def found_at(port: str) -> bool:
-            """Guaranteed to return True or False, depending on if the PSU is
-            detected at the provided port."""
+            """Guaranteed to return True or False, depending on if the PSU is detected at the provided port."""
             def valid_firmware_string(firmware: str) -> bool:
-                """Validate 'yyyy.x' version string.
-                Returns True is meets criteria, False if not."""
+                """Validate 'yyyy.x' version string. Returns True is meets criteria, False if not."""
                 try:
                     if len(firmware) < len("yyyy.x"):
                         raise ValueError()
@@ -268,14 +266,16 @@ class PSU:
                     parity        = Config.PSU.Serial.parity,
                     stopbits      = Config.PSU.Serial.stopbits,
                     bytesize      = Config.PSU.Serial.bytesize,
-                    timeout       = 0.3,
+                    timeout       = 1.3,
                     write_timeout = None
                 )
                 PSU.flush(port)
                 # Agilent uses CRLF line termination
                 response = transact(port, 'System:Version?\r\n')
+                log.debug("response: '{}'".format(response))
                 result = valid_firmware_string(response)
-            except:
+            except Exception as e:
+                log.debug("Exception: " + str(e))
                 result = False
             finally:
                 try:
@@ -287,13 +287,11 @@ class PSU:
         # PSU.find() block begins
         #
         import serial.tools.list_ports
-        port = None
         for sysfsobj in serial.tools.list_ports.comports():
-            log.info("Trying ", sysfsobj.device)
+            log.info("Trying {}...".format(sysfsobj.device))
             if found_at(sysfsobj.device):
-                port = sysfsobj.device
-                break
-        return port
+                return sysfsobj.device
+        return None
 
     # Must be static method, because this method has be be usable
     # before the class is instantiated. Specifically, by the static
@@ -302,24 +300,24 @@ class PSU:
     def flush(port: serial.Serial):
         """Clear serial line/buffers from artefacts. Agilent E3631 User's Guide (p. 59) tells us that sending CTRL-C to the unit will cause it to discard any pending output. ("^C" ETX; "End of Text", 0x03 or b'\x03'). Quite: "For the <Ctrl-C> character to be recognized reliably by the power supply while it holds DTR FALSE, the bus controller must first set DSR FALSE. (NOTE: for us, in PySerial, this means setting _our_ DTR low)."""
         discard_timeout = 0.1
-        log.debug("#1 {} {}".format(port.dsr, port.dtr))
+        log.debug("#1 DSR: {} DTR: {}".format(port.dsr, port.dtr))
         port.flushOutput()
-        log.debug("#2 {} {}".format(port.dsr, port.dtr))
+        log.debug("#2 DSR: {} DTR: {}".format(port.dsr, port.dtr))
         port.flushInput()
-        log.debug("#3 {} {}".format(port.dsr, port.dtr))
+        log.debug("#3 DSR: {} DTR: {}".format(port.dsr, port.dtr))
         time.sleep(0.1)
-        log.debug("#4 {} {}".format(port.dsr, port.dtr))
-        port.dtr = 0
-        log.debug("#5 {} {}".format(port.dsr, port.dtr))
+        log.debug("#4 DSR: {} DTR: {}".format(port.dsr, port.dtr))
+        port.dtr = False
+        log.debug("#5 DSR: {} DTR: {}".format(port.dsr, port.dtr))
         port.write(b'\x03')
-        log.debug("#6 {} {}".format(port.dsr, port.dtr))
-        port.dtr = 1
-        log.debug("#7 {} {}".format(port.dsr, port.dtr))
+        log.debug("#6 DSR: {} DTR: {}".format(port.dsr, port.dtr))
+        port.dtr = True
+        log.debug("#7 DSR: {} DTR: {}".format(port.dsr, port.dtr))
         # wait until unit raises DTR
         start = time.monotonic()
         while not port.dsr and time.monotonic() - start < discard_timeout:
             time.sleep(0.01)
-        log.debug("#8 {} {}".format(port.dsr, port.dtr))
+        log.debug("#8 DSR: {} DTR: {}".format(port.dsr, port.dtr))
         if not port.dsr:
             raise serial.SerialTimeoutException(
                 "Device did not raise DTR within {:1.2f} ms".format(
@@ -344,12 +342,6 @@ class PSU:
 
         # Instantiate .measure member
         self.measure = self.Measure(self)
-
-        # If port == 'auto', try to .find() it.
-        if not port and Config.PSU.Serial.port.lower() == 'auto':
-            port = PSU.find()
-            if port is None:
-                raise ValueError("Unable to find power supply!")
 
         # Read and convert Config.py's float values into decimal.Decimal
         # TODO: Try to make sure we get the exact value read in

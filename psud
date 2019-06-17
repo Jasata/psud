@@ -133,27 +133,32 @@ if __name__ == "__main__":
     parser.add_argument(
         '-p',
         '--port',
-        help = "Set serial port device. Default: '{}'".format(Config.PSU.Serial.port),
-        nargs = '?',
-        dest = "port",
-        const = "DEVICE",
+        help    = "Set serial port device. Default: '{}'".format(Config.PSU.Serial.port),
+        nargs   = '?',
+        dest    = "port",
+        const   = "DEVICE",
         default = Config.PSU.Serial.port,
-        type = str
+        type    = str
     )
     parser.add_argument(
         '--nodaemon',
-        help = 'Do not execute as a daemon',
-        action = 'store_true'
+        help    = 'Do not execute as a daemon',
+        action  = 'store_true'
+    )
+    parser.add_argument(
+        '--systemd',
+        help    = 'Do not execute as a daemon AND minimal display output',
+        action  = 'store_true'
     )
     parser.add_argument(
         '--kill',
-        help = 'Kill daemon',
-        action = 'store_true'
+        help    = 'Kill daemon',
+        action  = 'store_true'
     )
     parser.add_argument(
         '--status',
-        help = 'Get status report about the daemon',
-        action = 'store_true'
+        help    = 'Get status report about the daemon',
+        action  = 'store_true'
     )
     args = parser.parse_args()
 
@@ -165,7 +170,18 @@ if __name__ == "__main__":
     Config.database_file    = args.database_file
     Config.PSU.Serial.port  = args.port
     # Convert to numeric logging level
-    Config.logging_level = getattr(logging, args.logging_level)
+    Config.logging_level    = getattr(logging, args.logging_level)
+    # Special "mode" : systemd
+    # Used only when the daemon is started with the systemd psu.service file.
+    # Effectively; nodaemon -mode without the console ticker output.
+    setattr(
+        Config.PSU.Daemon,
+        "systemd",
+        (args.systemd or False)
+    )
+    # Must not / will not run as a daemon
+    if args.systemd:
+        args.nodaemon = True
     # Store daemonization flag
     setattr(
         Config.PSU.Daemon,

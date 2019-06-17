@@ -41,6 +41,8 @@ _retry_count = 3
 #
 def ticker():
     """Rotating character. Used only on non-daemon case."""
+    if Config.PSU.Daemon.systemd:
+        return
     try:
         c = ('|', '/', '-', '\\')[ticker.value]
         ticker.value += 1
@@ -163,7 +165,7 @@ def psu():
                         )
                         lastupdate = now
     except KeyboardInterrupt:
-        # print() would be OK here, because daemon code
+        # NOTE: print() would be OK here, because daemon code
         # can never receive KeyboardInterrupt
         log.info("Terminated with CTRL-C")
         pass
