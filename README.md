@@ -26,6 +26,7 @@ This daemon is intended to be managed by PATE Monitor's System Daemon, but can b
       -l [LEVEL], --log [LEVEL]     Set logging level. Default: INFO
       -p [PORT], --port [PORT]      Set serial port device. Default: 'auto'
       --nodaemon                    Do not execute as a daemon
+      --systemd                     Do not execute as a daemon AND minimal display output
       --kill                        Kill daemon
       --status                      Get status report about the daemon
 
@@ -38,6 +39,8 @@ Default values come from `Config.py`. There are no mandatory options.
 **Option `-p`** takes either a serial device (`/dev/ttyUSB0`, ...) or `auto`. If `auto` specified, the daemon will attempt to detect which of the system's serial ports has the Agilent power supply connected to. This is done by opening each port in the system with configured (`Config.py`) port parameters and issueing a SCPI command for firmware version query. In this implementation, Agilent E3631 is identified by known version number (`1995.0`). This strategy works for this specific use case, but should not be copied to other implementations as-is.
 
 **Option `--nodaemon`** runs the program in the current terminal (and can be terminated with CTRL-C).
+
+**Option `--systemd`** runs the program as a terminal program, without ticker output. Used only with systemd service mode.
 
 **Option `--kill`** reads a PID from lock file and attempts to issue SIGTERM to that process. *Due to pySerial specifics, this command may need to be repeated, in case the first happens exactly during serial read call.*
 
