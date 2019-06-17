@@ -47,7 +47,7 @@ ExecStart={}
 WantedBy=multi-user.target
 """.format(
     Config.PSU.Daemon.process_owner,
-    os.path.dirname(os.path.realpath(__file__)) + "/psud --nodaemon"
+    os.path.dirname(os.path.realpath(__file__)) + "/psud --systemd"
 )
 
 
