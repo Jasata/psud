@@ -524,7 +524,7 @@ class PSU:
 
 
     def next_error(self):
-        code, msg = self.__transact("SYST:ERR?").split(",")
+        _, msg = self.__transact("SYST:ERR?").split(",")
         return msg
 
 
